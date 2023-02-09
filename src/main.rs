@@ -1,40 +1,24 @@
-use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf};
+//! Author: Will Hopkins <willothyh@gmail.com>
+//! Description: A simple CLI tool for managing program configurations across multiple machines.
+//! License: MIT
+#![cfg(not(windows))]
 
-#[derive(Debug, Deserialize, Serialize, Parser)]
-pub struct ConfigEntry {
-    pub name: String,
-    pub dir: PathBuf,
-    pub repo: String,
-}
+mod cli;
+mod commands;
+mod config;
+mod git;
 
-#[derive(Debug, Parser)]
-#[command(author, version, about)]
-pub struct Cli {
-    #[command(subcommand)]
-    pub command: Command,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum Command {
-    Check,
-    Add {
-        name: String,
-        dir: PathBuf,
-        repo: String,
-    },
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = r#"
-        [test]
-        name = "test"
-        dir = "/tmp/test"
-        repo = "https://github.com/username/test.git"
-    "#;
-
-    let config: HashMap<String, ConfigEntry> = toml::from_str(config)?;
-
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    match cli::Cli::run().await {
+        Ok(_) => todo!(),
+        Err(e) => println!("Error: {}", e),
+    }
+    crossterm::execute!(std::io::stdout(), crossterm::cursor::Show).unwrap();
     Ok(())
+}
+
+#[cfg(windows)]
+fn main() {
+    panic!("This program does not support Windows.");
 }
