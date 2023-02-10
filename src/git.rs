@@ -16,7 +16,7 @@ use reqwest::header::ACCEPT;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use spinoff::Spinner;
-use std::{cell::RefCell, fs, rc::Rc, time::Duration};
+use std::{cell::RefCell, fs, path::PathBuf, rc::Rc, time::Duration};
 
 use crate::config::{self, ConfinuumConfig};
 
@@ -259,21 +259,21 @@ impl AuthFile {
 /// Remote callbacks
 pub fn construct_callbacks<'a>(spinner: Rc<RefCell<Spinner>>) -> git2::RemoteCallbacks<'a> {
     let mut callbacks = git2::RemoteCallbacks::new();
-    let credentials_spinner = spinner.clone();
+    //let credentials_spinner = spinner.clone();
     callbacks.credentials(
         move |_url: &str, username: Option<&str>, allowed_types: git2::CredentialType| {
             if allowed_types.contains(git2::CredentialType::USERNAME) {
-                credentials_spinner
-                    .borrow_mut()
-                    .update_text(format!("Authenticating with {}", "username".bold()));
+                /* credentials_spinner
+                .borrow_mut()
+                .update_text(format!("Authenticating with {}", "username".bold())); */
                 let username = username.unwrap_or("git");
                 return git2::Cred::username(username);
             }
 
             if allowed_types.contains(git2::CredentialType::SSH_KEY) {
-                credentials_spinner
-                    .borrow_mut()
-                    .update_text(format!("Authenticating with {}", "SSH".bold()));
+                /* credentials_spinner
+                .borrow_mut()
+                .update_text(format!("Authenticating with {}", "SSH".bold())); */
                 let key = git2::Cred::ssh_key_from_agent(username.unwrap_or("git"));
                 match key {
                     Ok(key) => {
@@ -293,11 +293,11 @@ pub fn construct_callbacks<'a>(spinner: Rc<RefCell<Spinner>>) -> git2::RemoteCal
             }
         },
     );
-    let certificate_spinner = spinner.clone();
+    //let certificate_spinner = spinner.clone();
     callbacks.certificate_check(move |_cert, _valid| {
-        certificate_spinner
-            .borrow_mut()
-            .update_text("Checking certificate");
+        /* certificate_spinner
+        .borrow_mut()
+        .update_text("Checking certificate"); */
         Ok(git2::CertificateCheckStatus::CertificateOk)
     });
     let transfer_spinner = spinner.clone();
@@ -436,4 +436,14 @@ pub fn print_diff(diff: &Diff, format: DiffFormat) -> Result<()> {
     crossterm::queue!(stdout, Print("\n"))?;
     std::io::Write::flush(&mut stdout)?;
     Ok(())
+}
+
+pub(crate) fn diff_files(diff: &Diff) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for delta in diff.deltas() {
+        if let Some(file) = delta.new_file().path().map(|p| p.to_path_buf()) {
+            files.push(file);
+        }
+    }
+    Ok(files)
 }

@@ -7,7 +7,7 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use common_path::common_path_all;
 use serde::{Deserialize, Serialize};
 
@@ -15,16 +15,20 @@ use serde::{Deserialize, Serialize};
 pub struct ConfigEntry {
     #[serde(skip)]
     pub name: String,
-    pub files: HashSet<ConfigFile>,
+    /// The directory where the files will be deployed
+    /// Example: ~/.config/nvim - files from ~/.config/confinuum/nvim will be symlinked to
+    /// ~/.config/nvim/<file>
+    /// This must be an absolute path
+    /// Optional only for uninitialized config, it will always be set when adding files
+    pub target_dir: Option<PathBuf>,
+    pub files: HashSet<PathBuf>,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash, Clone)]
+/* #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash, Clone)]
 pub struct ConfigFile {
-    /// The path to the file on the local machine, relative to the home directory
-    pub target_path: PathBuf,
     /// The path to the file in the git repo, relative to the root of the repo
     pub source_path: PathBuf,
-}
+} */
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Confinuum {
@@ -51,21 +55,32 @@ impl ConfinuumConfig {
         entry: &mut ConfigEntry,
         files: Vec<PathBuf>,
         mut base: Option<PathBuf>,
-        result_files: &mut Option<&mut HashSet<ConfigFile>>,
-    ) -> Result<()> {
-        let config_dir = ConfinuumConfig::get_dir()?;
-        //let home_dir = var("HOME").map_err(|_| anyhow!("Could not get home directory"))?;
+        result_files: &mut Option<&mut HashSet<PathBuf>>,
+    ) -> Result<PathBuf> {
+        let config_dir = ConfinuumConfig::get_dir().context("Could not get config dir")?;
         let files_dir = config_dir.join(&entry.name);
 
         let canonicalized = files
             .iter()
-            .map(|x| x.canonicalize().map_err(|e| anyhow!("{}", e)))
+            .map(|x| {
+                x.canonicalize()
+                    .map_err(|e| anyhow!("Failed to canonicalize: {}", e))
+            })
             .collect::<Result<Vec<PathBuf>>>()?;
         if base.is_none() {
             base = Some(
                 common_path_all(canonicalized.iter().map(|x| x.as_path()))
                     .ok_or(anyhow!("Could not find common base path"))?,
             );
+            if entry.target_dir.is_some() && entry.target_dir != base {
+                return Err(anyhow!(
+                    "Target directory {:?} does not match base path {:?}! All files in a config entry must share a common base path (such as ~/.config/nvim/), so that they can be properly placed in that directory.",
+                    entry.target_dir,
+                    base
+                ));
+            } else if entry.target_dir.is_none() {
+                entry.target_dir = Some(base.clone().unwrap());
+            }
         }
 
         // First pass, collect all files and copy them to the config directory
@@ -84,29 +99,63 @@ impl ConfinuumConfig {
                     .collect::<Vec<_>>();
                 Self::add_files_recursive(entry, entries, base.clone(), result_files)?;
             } else {
-                let source_path = files_dir.join(file.strip_prefix(&base.clone().unwrap())?);
+                let source_path = files_dir.join(
+                    file.strip_prefix(&base.clone().unwrap()).with_context(|| {
+                        format!(
+                            "Could not strip prefix {} from {}",
+                            base.as_ref().unwrap().display(),
+                            file.display()
+                        )
+                    })?,
+                );
                 let parent_folder = source_path.parent().ok_or(anyhow!(
                     "Could not get parent folder for file: {:?}",
                     source_path
                 ))?;
                 if !parent_folder.exists() {
-                    std::fs::create_dir_all(parent_folder)?;
+                    std::fs::create_dir_all(parent_folder).with_context(|| {
+                        format!("Could not create dirs {}", parent_folder.display())
+                    })?;
                 }
-                //entry.files.insert();
-                new_files.push(ConfigFile {
-                    target_path: file.clone(),
-                    source_path: source_path.clone(),
-                });
-                std::fs::copy(file, source_path)?;
+
+                let repo_rel_source_path = source_path
+                    .strip_prefix(&config_dir.join(&entry.name))
+                    .with_context(|| {
+                        format!(
+                            "Could not strip prefix {} from {}",
+                            &config_dir.display(),
+                            &source_path.display()
+                        )
+                    })?
+                    .to_path_buf();
+                new_files.push(repo_rel_source_path.clone());
+                std::fs::copy(&file, &source_path).with_context(|| {
+                    format!(
+                        "Could not copy {} to {}",
+                        file.display(),
+                        source_path.display()
+                    )
+                })?;
             }
         }
 
         // Second pass, remove old files and symlink in configs from the repo
         // Do this separately to ensure that if there are errors copying files, we don't remove the old ones and lose them
         let mut err_undo = Ok(());
+        let config_dir = ConfinuumConfig::get_dir().context("Could not get config dir")?;
         for file in new_files.iter() {
-            std::fs::remove_file(&file.target_path)?;
-            let link = std::os::unix::fs::symlink(&file.source_path, &file.target_path);
+            let target_path = base.as_ref().unwrap().join(&file).canonicalize()?;
+            std::fs::remove_file(&target_path)
+                .with_context(|| format!("Cannot remove file {}", target_path.display()))?;
+            let link =
+                std::os::unix::fs::symlink(config_dir.join(&entry.name).join(file), &target_path)
+                    .with_context(|| {
+                        format!(
+                            "Could not symlink {} to {}",
+                            file.display(),
+                            target_path.display()
+                        )
+                    });
             if link.is_err() {
                 err_undo = link;
                 break;
@@ -116,23 +165,35 @@ impl ConfinuumConfig {
         if err_undo.is_err() {
             println!("Error symlinking files, reverting changes...");
             for file in new_files.iter() {
-                if !file.target_path.exists() {
-                    std::fs::copy(&file.source_path, &file.target_path)?;
-                } else if file.target_path.is_symlink()
-                    && file.target_path.read_link()? == file.source_path
-                {
-                    std::fs::remove_file(&file.target_path)?;
-                    std::fs::copy(&file.source_path, &file.target_path)?;
+                let target_path = base.as_ref().unwrap().join(&file);
+                if !target_path.exists() {
+                    std::fs::copy(&file, &target_path).with_context(|| {
+                        format!(
+                            "Could not copy {} to {}",
+                            file.display(),
+                            target_path.display()
+                        )
+                    })?;
+                } else if target_path.is_symlink() && target_path.read_link()? == *file {
+                    std::fs::remove_file(&target_path)
+                        .with_context(|| format!("Could not remove {}", target_path.display()))?;
+                    std::fs::copy(&file, &target_path).with_context(|| {
+                        format!(
+                            "Could not copy {} to {}",
+                            file.display(),
+                            target_path.display()
+                        )
+                    })?;
                 }
             }
-            return err_undo.map_err(|e| anyhow!("{}", e));
+            return Err(anyhow!("{}", err_undo.unwrap_err()));
         }
         // Then add the new files to the entry and result files
         if let Some(result_files) = result_files {
             result_files.extend(new_files.iter().cloned());
         }
         entry.files.extend(new_files);
-        Ok(())
+        Ok(base.unwrap())
     }
 
     pub fn exists() -> Result<bool> {
@@ -159,8 +220,10 @@ impl ConfinuumConfig {
                 "Config file does not exist. Run `confinuum init` to create one."
             ));
         }
-        let config_str = std::fs::read_to_string(Self::get_path()?)?;
-        let mut config: ConfinuumConfig = toml::from_str(&config_str)?;
+        let config_str = std::fs::read_to_string(Self::get_path()?)
+            .context("Could not load confinuum config")?;
+        let mut config: ConfinuumConfig =
+            toml::from_str(&config_str).context("Could not parse confinuum config")?;
         config.entries.iter_mut().for_each(|(name, entry)| {
             entry.name = name.to_string();
         });

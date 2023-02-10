@@ -3,16 +3,25 @@
 //! License: MIT
 #![cfg(not(windows))]
 
+use std::io::stdout;
+
 mod cli;
 mod commands;
 mod config;
 mod git;
 
+// TODO: Allow for an entry to contain submodules / be a submodule
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    match cli::Cli::run().await {
-        Ok(_) => todo!(),
-        Err(e) => println!("Error: {}", e),
+    if let Err(e) = cli::Cli::run().await {
+        crossterm::execute!(
+            stdout(),
+            crossterm::cursor::MoveToColumn(0),
+            crossterm::terminal::Clear(crossterm::terminal::ClearType::CurrentLine),
+            crossterm::cursor::Show
+        )?;
+        return Err(e);
     }
     crossterm::execute!(std::io::stdout(), crossterm::cursor::Show).unwrap();
     Ok(())
