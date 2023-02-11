@@ -55,7 +55,7 @@ impl Cli {
                 push,
             } => commands::remove(name, files, no_confirm, push),
             Command::List => commands::list(),
-            Command::Push { name } => commands::push(name),
+            Command::Push => commands::push(),
             Command::Check { print_diff, name } => commands::check(print_diff, name),
             Command::Update => commands::update(),
         }
@@ -118,8 +118,8 @@ pub enum Command {
     },
     #[command(about = "List all config entries", long_about = None)]
     List,
-    #[command(about = "Push config changes to remote repo(s)", long_about = None)]
-    Push { name: Option<String> },
+    #[command(about = "Push config changes to remote repo", long_about = None)]
+    Push,
     #[command(about = "Check for config updates", long_about = None)]
     Check {
         /// Print the diff between the local and remote config files

@@ -12,7 +12,7 @@ use std::{collections::HashSet, path::PathBuf};
 pub async fn add(name: String, files: Vec<PathBuf>, push: bool, github: &Github) -> Result<()> {
     let config_dir = ConfinuumConfig::get_dir().context("Failed to fetch config dir")?;
     let repo = Repository::open(&config_dir)
-        .with_context(|| format!("Could not open repository inn {}", config_dir.display()))?;
+        .with_context(|| format!("Could not open repository in {}", config_dir.display()))?;
     let mut remote = repo.find_remote("origin")?;
     let spinner = Spinner::new_shared(
         spinners::Dots9,
