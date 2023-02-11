@@ -47,8 +47,6 @@ pub async fn add(name: String, files: Vec<PathBuf>, push: bool, github: &Github)
         ));
     }
 
-    let signature = github.get_user_signature();
-
     let entry = config.entries.get_mut(&name).unwrap();
     let mut result_files = HashSet::new();
     ConfinuumConfig::add_files_recursive(entry, files, None, &mut Some(&mut result_files))
@@ -69,7 +67,7 @@ pub async fn add(name: String, files: Vec<PathBuf>, push: bool, github: &Github)
     let parent_commit = repo
         .find_last_commit()
         .context("Failed to retrieve last commit")?;
-    let sig = signature.await.context("Failed to fetch user siganture")?;
+    let sig = git::get_git_user_signature().unwrap_or(github.get_user_signature().await?);
     let tree = repo
         .find_tree(oid)
         .context("Failed to find new commit tree")?;
@@ -86,6 +84,9 @@ pub async fn add(name: String, files: Vec<PathBuf>, push: bool, github: &Github)
 
     repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &[&parent_commit])
         .context("Failed to commit files")?;
+
+    crate::util::undeploy(Some(&name))?;
+    crate::util::deploy(Some(&name))?;
 
     spinner.success("Files added successfully");
 

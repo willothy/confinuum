@@ -55,8 +55,6 @@ pub async fn delete(
     }
     spinner.clear();
 
-    let signature = github.get_user_signature();
-
     let confirm = no_confirm || {
         let selection = dialoguer::Select::new()
             .with_prompt(format!(
@@ -154,7 +152,7 @@ pub async fn delete(
             .find_last_commit()
             .context("Failed to retrieve last commit")?;
         // Await the user signature from the GitHub API
-        let sig = signature.await.context("Failed to fetch user siganture")?;
+        let sig = git::get_git_user_signature().unwrap_or(github.get_user_signature().await?);
         let tree = repo
             .find_tree(oid)
             .context("Failed to find new commit tree")?;

@@ -1,11 +1,12 @@
 use anyhow::{anyhow, Context, Result};
 use crossterm::{
-    cursor::{MoveDown, MoveToColumn},
-    style::{self, Print, Stylize},
+    cursor::MoveToColumn,
+    style::{self, Print},
 };
 use either::Either;
+use email_address::EmailAddress;
 use git2::{
-    Commit, Diff, DiffDelta, DiffFormat, DiffHunk, DiffLine, ObjectType, PackBuilderStage,
+    Commit, Config, Diff, DiffDelta, DiffFormat, DiffHunk, DiffLine, ObjectType, PackBuilderStage,
     Progress, Repository, Signature,
 };
 use octocrab::{
@@ -446,4 +447,31 @@ pub(crate) fn diff_files(diff: &Diff) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(files)
+}
+
+pub fn git_config() -> Result<Config> {
+    let path = git2::Config::find_global().context("Failed to find global git config")?;
+    git2::Config::open(&path).context("Failed to open global (user-level) git config")
+}
+
+pub fn get_git_user_name() -> Result<String> {
+    let config = git_config()?;
+    config
+        .get_string("user.name")
+        .context("Failed to get user.name from git config")
+}
+
+pub fn get_git_user_email() -> Result<EmailAddress> {
+    let config = git_config()?;
+    config
+        .get_string("user.email")
+        .context("Failed to get user.email from git config")?
+        .parse()
+        .context("Could not parse email address")
+}
+
+pub fn get_git_user_signature() -> Result<Signature<'static>> {
+    let name = get_git_user_name()?;
+    let email = get_git_user_email()?;
+    Ok(Signature::now(&name, &email.to_string())?)
 }

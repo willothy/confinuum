@@ -9,6 +9,7 @@ mod cli;
 mod commands;
 mod config;
 mod git;
+mod util;
 
 // TODO: Allow for an entry to contain submodules / be a submodule
 
@@ -24,6 +25,7 @@ async fn main() -> anyhow::Result<()> {
         return Err(e);
     }
     crossterm::execute!(std::io::stdout(), crossterm::cursor::Show).unwrap();
+
     Ok(())
 }
 

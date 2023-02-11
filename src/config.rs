@@ -9,7 +9,15 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use common_path::common_path_all;
+use email_address::EmailAddress;
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Confinuum {
+    pub git_protocol: Option<GitProtocol>,
+    pub git_user: Option<String>,
+    pub git_email: Option<EmailAddress>,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ConfigEntry {
@@ -22,17 +30,6 @@ pub struct ConfigEntry {
     /// Optional only for uninitialized config, it will always be set when adding files
     pub target_dir: Option<PathBuf>,
     pub files: HashSet<PathBuf>,
-}
-
-/* #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash, Clone)]
-pub struct ConfigFile {
-    /// The path to the file in the git repo, relative to the root of the repo
-    pub source_path: PathBuf,
-} */
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Confinuum {
-    pub git_protocol: Option<GitProtocol>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -139,9 +136,10 @@ impl ConfinuumConfig {
             }
         }
 
+        // NOTE: Second pass moved to `deploy` function in `crate::util`
         // Second pass, remove old files and symlink in configs from the repo
         // Do this separately to ensure that if there are errors copying files, we don't remove the old ones and lose them
-        let mut err_undo = Ok(());
+        /*         let mut err_undo = Ok(());
         let config_dir = ConfinuumConfig::get_dir().context("Could not get config dir")?;
         for file in new_files.iter() {
             let target_path = base.as_ref().unwrap().join(&file).canonicalize()?;
@@ -187,7 +185,8 @@ impl ConfinuumConfig {
                 }
             }
             return Err(anyhow!("{}", err_undo.unwrap_err()));
-        }
+        } */
+
         // Then add the new files to the entry and result files
         if let Some(result_files) = result_files {
             result_files.extend(new_files.iter().cloned());
@@ -241,6 +240,17 @@ impl ConfinuumConfig {
         std::fs::write(config_path, config_str)?;
         Ok(())
     }
+
+    pub fn default_with_user(user: String, email: EmailAddress) -> Self {
+        Self {
+            confinuum: Some(Confinuum {
+                git_protocol: Some(GitProtocol::Ssh),
+                git_user: Some(user),
+                git_email: Some(email),
+            }),
+            entries: HashMap::new(),
+        }
+    }
 }
 
 impl Default for ConfinuumConfig {
@@ -248,6 +258,8 @@ impl Default for ConfinuumConfig {
         Self {
             confinuum: Some(Confinuum {
                 git_protocol: Some(GitProtocol::Ssh),
+                git_user: None,
+                git_email: None,
             }),
             entries: HashMap::new(),
         }

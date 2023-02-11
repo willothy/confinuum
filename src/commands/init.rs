@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::{anyhow, Context, Result};
+use crossterm::style::Stylize;
 use dialoguer::{theme::ColorfulTheme, Select};
 use git2::Repository;
 use git_url_parse::GitUrl;
@@ -34,12 +35,38 @@ pub async fn init(git: Option<String>, force: bool, github: &Github) -> Result<(
         Repository::clone(&git_url, config_dir).context(format!("Failed to clone {}", git_url))?;
         eprintln!("TODO: Setup configs");
     } else {
+        let username = if let Ok(username) = git::get_git_user_name() {
+            username
+        } else {
+            dialoguer::Input::with_theme(&ColorfulTheme::default())
+                .with_prompt(format!(
+                    "Could not find {} in git config. Enter the name you want to use for git commits",
+                    "user.name".bold()
+                ))
+                .interact()?
+        };
+
+        let email = match git::get_git_user_email() {
+            Ok(email) => email,
+            Err(e) => {
+                let mut e = e.to_string();
+                e.truncate(30);
+                dialoguer::Input::with_theme(&ColorfulTheme::default())
+                .with_prompt(format!(
+                    "Could not find {} in git config ({}). Enter the email you want to use for git commits",
+                    "user.email".bold(),
+                    e
+                ))
+                .interact()?
+            }
+        };
+
         let items = vec![
             "Create a new GitHub repository for me",
             "I'll create my own remote repository",
         ];
         let selection = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt("Welcome to Confinuum! How would you like to host your configs?")
+            .with_prompt("How would you like to host your configs?")
             .items(&items)
             .default(0)
             .interact_opt()?
@@ -92,39 +119,10 @@ pub async fn init(git: Option<String>, force: bool, github: &Github) -> Result<(
         let spinner = spinner.as_ref().unwrap();
 
         // TODO: Figure out how to make sure the remote is empty
-        /* let mut fetchopt = git2::FetchOptions::new();
-        fetchopt.update_fetchhead(false);
-        fetchopt.remote_callbacks(git::construct_callbacks(spinner.clone()));
-        spinner
-            .borrow_mut()
-            .update_text("Ensuring new remote is empty");
-        remote
-            .fetch(
-                &["refs/heads/main:refs/heads/main"],
-                Some(&mut fetchopt),
-                None,
-            )
-            .with_context(|| "Failed to fetch from new origin")?;
-        remote.disconnect()?;
-        // ensure fetch_head is empty
-        let fetch_head = repo.find_reference("FETCH_HEAD").with_context(|| {
-            crossterm::execute!(
-                std::io::stdout(),
-                crossterm::cursor::Show,
-                MoveToColumn(0),
-                Clear(crossterm::terminal::ClearType::CurrentLine)
-            )
-            .ok();
-            "Failed to find fetch_head"
-        })?;
-        if fetch_head.target().is_some() {
-            return Err(anyhow!("Remote is not empty, aborting."));
-        }
-        spinner.update_text("Remote is empty, continuing..."); */
 
         std::fs::write(
             &config_path,
-            toml::to_string_pretty(&ConfinuumConfig::default())?,
+            toml::to_string_pretty(&ConfinuumConfig::default_with_user(username, email))?,
         )?;
         let gitignore_path = config_dir.join(".gitignore");
         std::fs::write(&gitignore_path, "hosts.toml\n")?;
@@ -142,7 +140,7 @@ pub async fn init(git: Option<String>, force: bool, github: &Github) -> Result<(
             .with_context(|| format!("Could not add path {}", gitignore_path_ref.display()))?;
 
         let oid = index.write_tree()?;
-        let sig = github.get_user_signature().await?;
+        let sig = git::get_git_user_signature().unwrap_or(github.get_user_signature().await?);
         //let parent_commit = repo.find_last_commit()?;
         let tree = repo.find_tree(oid)?;
         let message = "Initial confinuum commit! 🎉";
