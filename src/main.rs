@@ -11,7 +11,7 @@ mod config;
 mod git;
 mod util;
 
-// TODO: Allow for an entry to contain submodules / be a submodule
+// TODO: Allow for an entry to contain submodules or be a submodule
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

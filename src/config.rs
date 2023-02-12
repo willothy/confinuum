@@ -97,20 +97,22 @@ impl ConfinuumConfig {
                 })
                 .collect::<Vec<_>>();
             let all = prev_entry_files.iter().chain(canonicalized.iter());
-            base = Some(
-                common_path_all(all.map(|x| x.as_path()))
-                    .ok_or(anyhow!("Could not find common base path"))?,
-            );
+            let new_base = common_path_all(all.map(|x| x.as_path()))
+                .ok_or(anyhow!("Could not find common base path"))?;
+
+            if let Some(target_dir) = &entry.target_dir {
+                if &new_base != target_dir {
+                    let mut new = HashSet::new();
+                    for entry in entry.files.iter() {
+                        let old = target_dir.join(&entry);
+                        new.insert(old.strip_prefix(&new_base)?.to_path_buf());
+                    }
+                    entry.files = new;
+                }
+            }
+
+            base = Some(new_base);
             entry.target_dir = Some(base.clone().unwrap());
-            /* if entry.target_dir.is_some() && entry.target_dir != base {
-                return Err(anyhow!(
-                    "Target directory {:?} does not match base path {:?}! All files in a config entry must share a common base path (such as ~/.config/nvim/), so that they can be properly placed in that directory.",
-                    entry.target_dir,
-                    base
-                ));
-            } else if entry.target_dir.is_none() {
-                entry.target_dir = Some(base.clone().unwrap());
-            } */
         }
 
         // First pass, collect all files and copy them to the config directory

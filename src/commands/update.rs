@@ -21,7 +21,6 @@ pub fn update() -> Result<()> {
     let mut remote = repo
         .find_remote("origin")
         .context("Failed to find remote named 'origin'")?;
-    crossterm::execute!(std::io::stdout(), crossterm::cursor::Hide)?;
     let spinner = Spinner::new_shared(
         spinners::Dots9,
         "Connecting to remote 'origin'",

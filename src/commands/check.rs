@@ -16,7 +16,6 @@ pub fn check(print_diff: bool, name: Option<String>) -> Result<()> {
     }
     let repo =
         Repository::open(config_dir).context("Failed to open config directory as a git repo")?;
-    crossterm::execute!(std::io::stdout(), crossterm::cursor::Hide)?;
     let spinner = Spinner::new_shared(
         spinners::Dots9,
         "Connecting to remote 'origin'",
@@ -105,8 +104,6 @@ pub fn check(print_diff: bool, name: Option<String>) -> Result<()> {
             );
         }
     }
-
-    crossterm::execute!(std::io::stdout(), crossterm::cursor::Show)?;
 
     Ok(())
 }
