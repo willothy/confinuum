@@ -52,12 +52,14 @@ impl Cli {
                 name,
                 files,
                 no_confirm,
+                no_replace_files,
                 push,
-            } => commands::remove(name, files, no_confirm, push),
+            } => commands::remove(name, files, no_confirm, no_replace_files, push, &github).await,
             Command::List => commands::list(),
             Command::Push => commands::push(),
             Command::Check { print_diff, name } => commands::check(print_diff, name),
             Command::Update => commands::update(),
+            Command::Redeploy => commands::redeploy(),
         }
     }
 }
@@ -84,7 +86,7 @@ pub enum Command {
         #[clap(short = 'p', long)]
         push: bool,
     },
-    #[command(about = "Remove a config entry (files will be restored to their original locations unless no_replace_files is set)", long_about = None)]
+    #[command(about = "Remove a config entry (files will be restored to their original locations)", long_about = None)]
     Delete {
         name: String,
         /// Don't ask for confirmation before deleting the entry
@@ -105,13 +107,16 @@ pub enum Command {
         #[clap(short = 'p', long)]
         push: bool,
     },
-    #[command(about = "Remove one or more files from an existing config entry", long_about = None)]
+    #[command(about = "Remove one or more files from an existing config entry (files will be restored to their original locations)", long_about = None)]
     Remove {
         name: String,
         files: Vec<PathBuf>,
         /// Don't ask for confirmation before removing the file(s)
         #[clap(short = 'y', long)]
         no_confirm: bool,
+        #[clap(short = 'f', long)]
+        /// Don't return files to their original locations, just delete them
+        no_replace_files: bool,
         /// Push changes to the remote repo instead of waiting for a manual push (without this flag the change(s) will be committed locally but not pushed)
         #[clap(short = 'p', long)]
         push: bool,
@@ -130,6 +135,8 @@ pub enum Command {
     },
     #[command(name="update", about = "Update config from the remote repo", long_about = None)]
     Update,
+    #[command(name = "redeploy", about = "Redeploy all configs", long_about = None)]
+    Redeploy,
 }
 
 pub trait CreateSharedSpinner {

@@ -2,6 +2,7 @@ use crate::{
     cli::{CreateSharedSpinner, SharedSpinner},
     config::{ConfigEntry, ConfinuumConfig},
     git::{self, Github, RepoExtensions},
+    util,
 };
 use anyhow::{anyhow, Context, Result};
 use git2::{Direction, FetchOptions, IndexAddOption, Repository};
@@ -51,75 +52,77 @@ pub async fn new(
         ));
     }
 
-    let mut config = ConfinuumConfig::load()?;
-    if config.entries.contains_key(&name) {
-        return Err(anyhow!(
+    let spinner = Spinner::new_shared(
+        spinners::Dots9,
+        "Connecting to remote 'origin'",
+        Color::Blue,
+    );
+
+    {
+        let mut config = ConfinuumConfig::load()?;
+        if config.entries.contains_key(&name) {
+            return Err(anyhow!(
             "Entry named {} already exists! Use the `add` and `remove` subcommands to add or remove files from it.",
             name
         ));
-    }
-
-    config.entries.insert(
-        name.clone(),
-        ConfigEntry {
-            name: name.clone(),
-            files: HashSet::new(),
-            target_dir: None,
-        },
-    );
-    let entry = config.entries.get_mut(&name).unwrap();
-    let mut result_files = HashSet::new();
-    if let Some(files) = files {
-        ConfinuumConfig::add_files_recursive(entry, files, None, &mut Some(&mut result_files))
-            .context("Failed to add files to config")?;
-    }
-    config.save().context("Failed to save config file")?;
-
-    let mut index = repo.index()?;
-    let mut imp = |path: &std::path::Path, _data: &[u8]| {
-        if path.starts_with(".git") {
-            return 1; // skip .git/
         }
-        return 0;
-    };
-    index
-        .add_all(["*"], IndexAddOption::DEFAULT, Some(&mut imp))
-        .context("Could not add files")?;
-    let oid = index.write_tree().context("Failed to write tree")?;
-    let parent_commit = repo
-        .find_last_commit()
-        .context("Failed to retrieve last commit")?;
-    let sig = git::get_git_user_signature().unwrap_or(github.get_user_signature().await?);
-    let tree = repo
-        .find_tree(oid)
-        .context("Failed to find new commit tree")?;
-    let message = format!(
-        "Added configs for `{}`{}\n\nNew files:\n{}",
-        name,
-        if result_files.is_empty() {
-            "".to_owned()
-        } else {
-            format!(" with {} files", result_files.len())
-        },
-        result_files
-            .iter()
-            .map(|f| f.display().to_string())
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
 
-    repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &[&parent_commit])
-        .context("Failed to commit files")?;
+        config.entries.insert(
+            name.clone(),
+            ConfigEntry {
+                name: name.clone(),
+                files: HashSet::new(),
+                target_dir: None,
+            },
+        );
+        let entry = config.entries.get_mut(&name).unwrap();
+        let mut result_files = HashSet::new();
+        if let Some(files) = files {
+            ConfinuumConfig::add_files_recursive(entry, files, None, &mut Some(&mut result_files))
+                .context("Failed to add files to config")?;
+        }
+        config.save().context("Failed to save config file")?;
 
-    crate::util::undeploy(Some(&name))?;
-    crate::util::deploy(Some(&name))?;
+        let mut index = repo.index()?;
+        let mut imp = |path: &std::path::Path, _data: &[u8]| {
+            if path.starts_with(".git") {
+                return 1; // skip .git/
+            }
+            return 0;
+        };
+        index
+            .add_all(["*"], IndexAddOption::DEFAULT, Some(&mut imp))
+            .context("Could not add files")?;
+        let oid = index.write_tree().context("Failed to write tree")?;
+        let parent_commit = repo
+            .find_last_commit()
+            .context("Failed to retrieve last commit")?;
+        let sig = git::get_git_user_signature().unwrap_or(github.get_user_signature().await?);
+        let tree = repo
+            .find_tree(oid)
+            .context("Failed to find new commit tree")?;
+        let message = format!(
+            "Added configs for `{}`{}\n\nNew files:\n{}",
+            name,
+            if result_files.is_empty() {
+                "".to_owned()
+            } else {
+                format!(" with {} files", result_files.len())
+            },
+            result_files
+                .iter()
+                .map(|f| f.display().to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+
+        repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &[&parent_commit])
+            .context("Failed to commit files")?;
+
+        crate::util::deploy(Some(&name))?;
+    }
 
     if push {
-        let spinner = Spinner::new_shared(
-            spinners::Dots9,
-            "Connecting to remote 'origin'",
-            Color::Blue,
-        );
         {
             let mut pushopt = git2::PushOptions::new();
             pushopt.remote_callbacks(git::construct_callbacks(spinner.clone()));
@@ -130,6 +133,8 @@ pub async fn new(
             // Scope to ensure that all references to spinner are dropped before we call success
         }
         spinner.success("Changes pushed successfully.");
+    } else {
+        spinner.success(&format!("Added entry {}.", name));
     }
 
     Ok(())

@@ -17,3 +17,11 @@ pub use new::new;
 pub use push::push;
 pub use remove::remove;
 pub use update::update;
+
+use crate::util;
+
+pub(crate) fn redeploy() -> Result<(), anyhow::Error> {
+    util::undeploy(None::<&str>)?;
+    util::deploy(None::<&str>)?;
+    Ok(())
+}

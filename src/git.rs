@@ -17,7 +17,14 @@ use reqwest::header::ACCEPT;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use spinoff::Spinner;
-use std::{cell::RefCell, fs, path::PathBuf, rc::Rc, time::Duration};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    fs,
+    path::PathBuf,
+    rc::Rc,
+    time::Duration,
+};
 
 use crate::config::{self, ConfinuumConfig};
 
@@ -447,6 +454,44 @@ pub(crate) fn diff_files(diff: &Diff) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(files)
+}
+
+pub fn diff_entries(files: &Vec<PathBuf>) -> Result<(HashMap<String, HashSet<PathBuf>>, bool)> {
+    let mut entries = HashMap::new();
+    let config = ConfinuumConfig::load()?;
+    let mut config_updated = false;
+    for file in files {
+        let components = file.components();
+        if components.count() == 1 {
+            // File is in root of config directory
+            if file.components().next().unwrap().as_os_str() == "config.toml" {
+                config_updated = true;
+            }
+
+            continue;
+        }
+        let entry = file
+            .components()
+            .next()
+            .unwrap()
+            .as_os_str()
+            .to_string_lossy()
+            .to_string();
+        if config.entries.contains_key(&entry) {
+            if entries.contains_key(&entry) {
+                let entry_files: &mut HashSet<PathBuf> = entries.get_mut(&entry).unwrap();
+                entry_files.insert(file.to_path_buf());
+            } else {
+                entries.insert(entry, HashSet::from_iter(vec![file.to_path_buf()]));
+            }
+        } else {
+            return Err(anyhow!(
+                "Found file that does not belong to any entry: {}",
+                file.display()
+            ));
+        }
+    }
+    Ok((entries, config_updated))
 }
 
 pub fn git_config() -> Result<Config> {

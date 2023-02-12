@@ -31,19 +31,28 @@ pub fn deploy(name: Option<impl Into<String>>) -> Result<()> {
             }
         })
         .try_for_each(|entry| -> Result<()> {
-            let entry_name = &entry.name;
             let target_dir = entry.target_dir.as_ref().unwrap();
             entry.files.iter().try_for_each(|file| -> Result<()> {
                 let target_path = target_dir.join(&file);
+                let source_path = config_dir.join(&entry.name).join(file);
+                if !source_path.exists() {
+                    return Err(anyhow!(
+                        "File {} does not exist in configs",
+                        source_path.display()
+                    ));
+                }
                 if target_path.exists() {
+                    if target_path.is_symlink() && target_path.read_link()? == source_path {
+                        // If the file is already a symlink to the correct place, do nothing
+                        return Ok(());
+                    }
                     std::fs::remove_file(&target_path)
                         .with_context(|| format!("Cannot remove file {}", target_path.display()))?;
                 }
-                std::os::unix::fs::symlink(config_dir.join(&entry.name).join(file), &target_path)
-                    .with_context(|| {
+                std::os::unix::fs::symlink(&source_path, &target_path).with_context(|| {
                     format!(
                         "Could not symlink {} to {}",
-                        config_dir.join(&entry.name).join(file).display(),
+                        source_path.display(),
                         target_path.display()
                     )
                 })?;
@@ -107,7 +116,7 @@ pub fn deploy(name: Option<impl Into<String>>) -> Result<()> {
             })?;
     }
 
-    todo!()
+    Ok(())
 }
 
 pub fn undeploy(name: Option<impl Into<String>>) -> Result<()> {
@@ -138,7 +147,7 @@ pub fn undeploy(name: Option<impl Into<String>>) -> Result<()> {
                 }
             }
         })
-        .for_each(|entry| {
+        .try_for_each(|entry| -> Result<()> {
             let entry_name = &entry.name;
             let target_dir = entry.target_dir.as_ref().unwrap();
             entry
@@ -150,16 +159,18 @@ pub fn undeploy(name: Option<impl Into<String>>) -> Result<()> {
                         config_dir.join(entry_name).join(file),
                     )
                 })
-                .for_each(|(symlink, expected_target)| {
+                .try_for_each(|(symlink, expected_target)| -> Result<()> {
                     if symlink.exists() && symlink.is_symlink() {
                         if let Ok(link_target) = symlink.read_link() {
                             if link_target == expected_target {
-                                std::fs::remove_file(symlink).unwrap();
+                                std::fs::remove_file(symlink)?;
                             }
                         }
                     }
-                });
-        });
+                    Ok(())
+                })?;
+            Ok(())
+        })?;
 
     Ok(())
 }

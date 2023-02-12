@@ -12,6 +12,8 @@ use common_path::common_path_all;
 use email_address::EmailAddress;
 use serde::{Deserialize, Serialize};
 
+use crate::util;
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Confinuum {
     pub git_protocol: Option<GitProtocol>,
@@ -65,11 +67,25 @@ impl ConfinuumConfig {
             })
             .collect::<Result<Vec<PathBuf>>>()?;
         if base.is_none() {
+            let prev_entry_files = entry
+                .files
+                .iter()
+                .map(|f| {
+                    entry
+                        .target_dir
+                        .as_ref()
+                        .unwrap()
+                        .join(&entry.name)
+                        .join(&f)
+                })
+                .collect::<Vec<_>>();
+            let all = prev_entry_files.iter().chain(canonicalized.iter());
             base = Some(
-                common_path_all(canonicalized.iter().map(|x| x.as_path()))
+                common_path_all(all.map(|x| x.as_path()))
                     .ok_or(anyhow!("Could not find common base path"))?,
             );
-            if entry.target_dir.is_some() && entry.target_dir != base {
+            entry.target_dir = Some(base.clone().unwrap());
+            /* if entry.target_dir.is_some() && entry.target_dir != base {
                 return Err(anyhow!(
                     "Target directory {:?} does not match base path {:?}! All files in a config entry must share a common base path (such as ~/.config/nvim/), so that they can be properly placed in that directory.",
                     entry.target_dir,
@@ -77,7 +93,7 @@ impl ConfinuumConfig {
                 ));
             } else if entry.target_dir.is_none() {
                 entry.target_dir = Some(base.clone().unwrap());
-            }
+            } */
         }
 
         // First pass, collect all files and copy them to the config directory
@@ -136,56 +152,8 @@ impl ConfinuumConfig {
             }
         }
 
-        // NOTE: Second pass moved to `deploy` function in `crate::util`
-        // Second pass, remove old files and symlink in configs from the repo
-        // Do this separately to ensure that if there are errors copying files, we don't remove the old ones and lose them
-        /*         let mut err_undo = Ok(());
-        let config_dir = ConfinuumConfig::get_dir().context("Could not get config dir")?;
-        for file in new_files.iter() {
-            let target_path = base.as_ref().unwrap().join(&file).canonicalize()?;
-            std::fs::remove_file(&target_path)
-                .with_context(|| format!("Cannot remove file {}", target_path.display()))?;
-            let link =
-                std::os::unix::fs::symlink(config_dir.join(&entry.name).join(file), &target_path)
-                    .with_context(|| {
-                        format!(
-                            "Could not symlink {} to {}",
-                            file.display(),
-                            target_path.display()
-                        )
-                    });
-            if link.is_err() {
-                err_undo = link;
-                break;
-            }
-        }
-        // If there was an error, undo the symlinks, return the files to their original locations, and return the error
-        if err_undo.is_err() {
-            println!("Error symlinking files, reverting changes...");
-            for file in new_files.iter() {
-                let target_path = base.as_ref().unwrap().join(&file);
-                if !target_path.exists() {
-                    std::fs::copy(&file, &target_path).with_context(|| {
-                        format!(
-                            "Could not copy {} to {}",
-                            file.display(),
-                            target_path.display()
-                        )
-                    })?;
-                } else if target_path.is_symlink() && target_path.read_link()? == *file {
-                    std::fs::remove_file(&target_path)
-                        .with_context(|| format!("Could not remove {}", target_path.display()))?;
-                    std::fs::copy(&file, &target_path).with_context(|| {
-                        format!(
-                            "Could not copy {} to {}",
-                            file.display(),
-                            target_path.display()
-                        )
-                    })?;
-                }
-            }
-            return Err(anyhow!("{}", err_undo.unwrap_err()));
-        } */
+        // Files used to be symlinked here, but that was moved to
+        //    the deploy function to be used in commands where needed.
 
         // Then add the new files to the entry and result files
         if let Some(result_files) = result_files {

@@ -72,40 +72,7 @@ pub fn check(print_diff: bool, name: Option<String>) -> Result<()> {
         ));
     }
 
-    fn diff_entries(files: &Vec<PathBuf>) -> Result<(Vec<String>, bool)> {
-        let mut entries = Vec::new();
-        let config = ConfinuumConfig::load()?;
-        let mut config_updated = false;
-        for file in files {
-            let components = file.components();
-            if components.count() == 1 {
-                // File is in root of config directory
-                if file.components().next().unwrap().as_os_str() == "config.toml" {
-                    config_updated = true;
-                }
-
-                continue;
-            }
-            let entry = file
-                .components()
-                .next()
-                .unwrap()
-                .as_os_str()
-                .to_string_lossy()
-                .to_string();
-            if config.entries.contains_key(&entry) {
-                entries.push(entry);
-            } else {
-                return Err(anyhow!(
-                    "Found file that does not belong to any entry: {}",
-                    file.display()
-                ));
-            }
-        }
-        Ok((entries, config_updated))
-    }
-
-    let (entries, config_updated) = diff_entries(&diff_files)?;
+    let (entries, config_updated) = git::diff_entries(&diff_files)?;
     if config_updated {
         println!(
             "\nFound changes in {}{}",
@@ -118,7 +85,7 @@ pub fn check(print_diff: bool, name: Option<String>) -> Result<()> {
         );
     }
     if let Some(name) = name {
-        if entries.contains(&name) {
+        if entries.contains_key(&name) {
             println!("\nFound remote updates for entry {}\n", name.yellow());
         } else {
             println!(
@@ -134,7 +101,7 @@ pub fn check(print_diff: bool, name: Option<String>) -> Result<()> {
                 if entries.len() == 1 { "y" } else { "ies" },
                 entries
                     .into_iter()
-                    .map(|e| e.yellow().to_string())
+                    .map(|(name, _)| name.yellow().to_string())
                     .collect::<Vec<_>>()
                     .join(", ")
             );
