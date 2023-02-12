@@ -69,7 +69,7 @@ impl Cli {
 pub enum Command {
     #[command(about = "Initialize the confinuum config file", long_about = None)]
     Init {
-        /// Initialize config from git repo
+        /// Initialize from git repo containing an existing confinuum config
         #[arg(long)]
         git: Option<String>,
         /// Force overwrite of config file if it already exists

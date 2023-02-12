@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Context, Result};
 use crossterm::{
     cursor::MoveToColumn,
-    style::{self, Print},
+    style::{self, Print, Stylize},
 };
+use dialoguer::theme::ColorfulTheme;
 use either::Either;
 use email_address::EmailAddress;
 use git2::{
@@ -494,29 +495,87 @@ pub fn diff_entries(files: &Vec<PathBuf>) -> Result<(HashMap<String, HashSet<Pat
     Ok((entries, config_updated))
 }
 
-pub fn git_config() -> Result<Config> {
-    let path = git2::Config::find_global().context("Failed to find global git config")?;
-    git2::Config::open(&path).context("Failed to open global (user-level) git config")
-}
+pub mod gitconfig {
+    use super::*;
+    pub fn git_config() -> Result<Config> {
+        let path = git2::Config::find_global().context("Failed to find global git config")?;
+        git2::Config::open(&path).context("Failed to open global (user-level) git config")
+    }
 
-pub fn get_git_user_name() -> Result<String> {
-    let config = git_config()?;
-    config
-        .get_string("user.name")
-        .context("Failed to get user.name from git config")
-}
+    pub fn get_user_name() -> Result<String> {
+        let config = git_config()?;
+        config
+            .get_string("user.name")
+            .context("Failed to get user.name from git config")
+    }
 
-pub fn get_git_user_email() -> Result<EmailAddress> {
-    let config = git_config()?;
-    config
-        .get_string("user.email")
-        .context("Failed to get user.email from git config")?
-        .parse()
-        .context("Could not parse email address")
-}
+    pub fn get_user_email() -> Result<EmailAddress> {
+        let config = git_config()?;
+        config
+            .get_string("user.email")
+            .context("Failed to get user.email from git config")?
+            .parse()
+            .context("Could not parse email address")
+    }
 
-pub fn get_git_user_signature() -> Result<Signature<'static>> {
-    let name = get_git_user_name()?;
-    let email = get_git_user_email()?;
-    Ok(Signature::now(&name, &email.to_string())?)
+    /// Retrieve git config user.name and user.email and return a git2::Signature
+    /// Throw an error if either of the values are not set
+    pub fn get_user_sig() -> Result<Signature<'static>> {
+        let name = get_user_name()?;
+        let email = get_user_email()?;
+        Ok(Signature::now(&name, &email.to_string())?)
+    }
+
+    /// Retrieve git config user.name and user.email and return a git2::Signature
+    /// Prompt the user to set the values if they are not set
+    pub fn get_user_sig_with_prompt() -> Result<Signature<'static>> {
+        let username = if let Ok(username) = get_user_name() {
+            username
+        } else {
+            let username: String = dialoguer::Input::with_theme(&ColorfulTheme::default())
+                .with_prompt(format!(
+                    "It looks like you haven't set {} in your git config. Enter the name you want to use for git commits",
+                    "user.name".bold()
+                ))
+                .interact()?;
+            let add_to_gitconfig = dialoguer::Confirm::with_theme(&ColorfulTheme::default())
+                .with_prompt("Do you want to add this to your git config?")
+                .interact()?;
+            if add_to_gitconfig {
+                let mut config = git_config()?;
+                config.set_str("user.name", &username)?;
+            }
+            username
+        };
+
+        let email = match get_user_email() {
+            Ok(email) => email,
+            Err(e) => {
+                let mut err = e.to_string();
+                err.truncate(30);
+                let email: EmailAddress = dialoguer::Input::with_theme(&ColorfulTheme::default())
+                    .with_prompt(format!(
+                        "Could not find {} in git config ({}). Enter the email you want to use for git commits",
+                        "user.email".bold(),
+                        err
+                    ))
+                    .interact()?;
+
+                let add_to_gitconfig = dialoguer::Confirm::with_theme(&ColorfulTheme::default())
+                    .with_prompt("Do you want to add this to your git config?")
+                    .interact()?;
+                if add_to_gitconfig {
+                    let mut config = git_config()?;
+                    config.set_str("user.email", &email.to_string())?;
+                }
+
+                email
+            }
+        };
+
+        Signature::now(&username, &email.to_string()).context(format!(
+            "Failed to create git signature from {} and {}",
+            username, email
+        ))
+    }
 }

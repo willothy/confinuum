@@ -7,7 +7,7 @@ use spinoff::{spinners, Color, Spinner};
 
 use crate::{
     cli::{CreateSharedSpinner, SharedSpinner},
-    config::ConfinuumConfig,
+    config::{ConfinuumConfig, SignatureSource},
     git::{self, Github, RepoExtensions},
     util,
 };
@@ -176,7 +176,16 @@ pub async fn remove(
             .find_last_commit()
             .context("Failed to retrieve last commit")?;
         // Await the user signature from the GitHub API
-        let sig = git::get_git_user_signature().unwrap_or(github.get_user_signature().await?);
+        let sig = match &config.confinuum.signature_source {
+            SignatureSource::Github => github
+                .get_user_signature()
+                .await
+                .context("Could not fetch user signature from github")?,
+            SignatureSource::GitConfig => {
+                // allows users to set values in config if they don't exist
+                git::gitconfig::get_user_sig()?
+            }
+        };
         let tree = repo
             .find_tree(oid)
             .context("Failed to find new commit tree")?;

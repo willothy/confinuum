@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use crate::{
     cli::{CreateSharedSpinner, SharedSpinner},
     config::ConfinuumConfig,
@@ -7,7 +5,7 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Result};
 use crossterm::style::Stylize;
-use git2::{DiffFormat, DiffOptions, Direction, FetchOptions, Repository};
+use git2::{DiffOptions, Direction, FetchOptions, Repository};
 use spinoff::{spinners, Spinner};
 
 pub fn update() -> Result<()> {

@@ -9,16 +9,23 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use common_path::common_path_all;
-use email_address::EmailAddress;
 use serde::{Deserialize, Serialize};
-
-use crate::util;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Confinuum {
-    pub git_protocol: Option<GitProtocol>,
-    pub git_user: Option<String>,
-    pub git_email: Option<EmailAddress>,
+    pub git_protocol: GitProtocol,
+    /// Where to look for the user's name and email to be used in git commits
+    /// If this is set to github, the user's name and email will be fetched from their github account
+    /// If this is set to config, the user's name and email will be fetched from the config file
+    pub signature_source: SignatureSource,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum SignatureSource {
+    #[serde(rename = "github")]
+    Github,
+    #[serde(rename = "gitconfig")]
+    GitConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -44,12 +51,22 @@ pub enum GitProtocol {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ConfinuumConfig {
-    pub confinuum: Option<Confinuum>,
+    pub confinuum: Confinuum,
     #[serde(flatten)]
     pub entries: HashMap<String, ConfigEntry>,
 }
 
 impl ConfinuumConfig {
+    pub fn init(git_protocol: GitProtocol, signature_source: SignatureSource) -> Self {
+        Self {
+            confinuum: Confinuum {
+                git_protocol,
+                signature_source,
+            },
+            entries: HashMap::new(),
+        }
+    }
+
     pub fn add_files_recursive(
         entry: &mut ConfigEntry,
         files: Vec<PathBuf>,
@@ -207,29 +224,5 @@ impl ConfinuumConfig {
         }
         std::fs::write(config_path, config_str)?;
         Ok(())
-    }
-
-    pub fn default_with_user(user: String, email: EmailAddress) -> Self {
-        Self {
-            confinuum: Some(Confinuum {
-                git_protocol: Some(GitProtocol::Ssh),
-                git_user: Some(user),
-                git_email: Some(email),
-            }),
-            entries: HashMap::new(),
-        }
-    }
-}
-
-impl Default for ConfinuumConfig {
-    fn default() -> Self {
-        Self {
-            confinuum: Some(Confinuum {
-                git_protocol: Some(GitProtocol::Ssh),
-                git_user: None,
-                git_email: None,
-            }),
-            entries: HashMap::new(),
-        }
     }
 }

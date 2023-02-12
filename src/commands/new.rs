@@ -1,8 +1,7 @@
 use crate::{
     cli::{CreateSharedSpinner, SharedSpinner},
-    config::{ConfigEntry, ConfinuumConfig},
+    config::{ConfigEntry, ConfinuumConfig, SignatureSource},
     git::{self, Github, RepoExtensions},
-    util,
 };
 use anyhow::{anyhow, Context, Result};
 use git2::{Direction, FetchOptions, IndexAddOption, Repository};
@@ -97,7 +96,16 @@ pub async fn new(
         let parent_commit = repo
             .find_last_commit()
             .context("Failed to retrieve last commit")?;
-        let sig = git::get_git_user_signature().unwrap_or(github.get_user_signature().await?);
+        let sig = match &config.confinuum.signature_source {
+            SignatureSource::Github => github
+                .get_user_signature()
+                .await
+                .context("Could not fetch user signature from github")?,
+            SignatureSource::GitConfig => {
+                // allows users to set values in config if they don't exist
+                git::gitconfig::get_user_sig()?
+            }
+        };
         let tree = repo
             .find_tree(oid)
             .context("Failed to find new commit tree")?;
