@@ -265,50 +265,73 @@ impl AuthFile {
     }
 }
 
+fn find_ssh_key() -> anyhow::Result<PathBuf> {
+    let ssh_dir =
+        PathBuf::from(std::env::var("HOME").context("Could not find home directory")?).join(".ssh");
+
+    let key = vec!["id_ed25519", "id_rsa", "id_ecdsa", "id_dsa"]
+        .into_iter()
+        .map(|key| ssh_dir.join(key))
+        .find(|key| key.exists())
+        .ok_or_else(|| anyhow!("No SSH key found"))?;
+
+    Ok(key)
+}
+
 /// Remote callbacks
 pub fn construct_callbacks<'a>(spinner: Rc<RefCell<Spinner>>) -> git2::RemoteCallbacks<'a> {
     let mut callbacks = git2::RemoteCallbacks::new();
-    //let credentials_spinner = spinner.clone();
     callbacks.credentials(
-        move |_url: &str, username: Option<&str>, allowed_types: git2::CredentialType| {
+        move |url: &str, username: Option<&str>, allowed_types: git2::CredentialType| {
             if allowed_types.contains(git2::CredentialType::USERNAME) {
-                /* credentials_spinner
-                .borrow_mut()
-                .update_text(format!("Authenticating with {}", "username".bold())); */
                 let username = username.unwrap_or("git");
                 return git2::Cred::username(username);
             }
 
-            if allowed_types.contains(git2::CredentialType::SSH_KEY) {
-                /* credentials_spinner
-                .borrow_mut()
-                .update_text(format!("Authenticating with {}", "SSH".bold())); */
-                let key = git2::Cred::ssh_key_from_agent(username.unwrap_or("git"));
-                match key {
-                    Ok(key) => {
-                        if key.credtype() == git2::CredentialType::SSH_KEY.bits() {
-                            Ok(key)
-                        } else {
-                            // If there are no identities in the agent, the remote will repeatedly ask for credentials
-                            // until the user cancels the operation.
-                            // This cancels if the cred is not an SSH key so that we avoid an infinite loop.
-                            Err(git2::Error::from_str("No SSH key found"))
-                        }
-                    }
-                    Err(_) => key,
-                }
-            } else {
-                Err(git2::Error::from_str("SSH Auth not supported"))
+            if allowed_types.contains(git2::CredentialType::SSH_KEY)
+                || allowed_types.contains(git2::CredentialType::DEFAULT)
+            {
+                let key_path = find_ssh_key()
+                    .map_err(|_| git2::Error::from_str("Could not find SSH key in ~/.ssh"))?;
+                return git2::Cred::ssh_key(
+                    username.unwrap_or("git"),
+                    None,
+                    key_path.as_path(),
+                    None,
+                );
             }
+
+            if allowed_types.contains(git2::CredentialType::SSH_MEMORY) {
+                let key_path = find_ssh_key()
+                    .map_err(|_| git2::Error::from_str("Could not find SSH key in ~/.ssh"))?;
+                let key = std::fs::read_to_string(key_path)
+                    .map_err(|_| git2::Error::from_str("Could not read SSH key"))?;
+                return git2::Cred::ssh_key_from_memory(
+                    username.unwrap_or("git"),
+                    None,
+                    &key,
+                    None,
+                );
+            }
+
+            if allowed_types.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+                let config = git2::Config::open_default()?;
+                if let Ok(cred) = git2::Cred::credential_helper(&config, url, username) {
+                    return Ok(cred);
+                } else {
+                    let username = username.unwrap_or("git");
+                    let password =
+                        rpassword::prompt_password(format!("Password for '{}': ", username))
+                            .map_err(|_| git2::Error::from_str("Could not prompt for password"))?;
+                    return git2::Cred::userpass_plaintext(username, &password);
+                }
+            }
+
+            return Err(git2::Error::from_str("SSH Auth type not supported"));
         },
     );
-    //let certificate_spinner = spinner.clone();
-    callbacks.certificate_check(move |_cert, _valid| {
-        /* certificate_spinner
-        .borrow_mut()
-        .update_text("Checking certificate"); */
-        Ok(git2::CertificateCheckStatus::CertificateOk)
-    });
+    callbacks
+        .certificate_check(move |_cert, _valid| Ok(git2::CertificateCheckStatus::CertificateOk));
     let transfer_spinner = spinner.clone();
     callbacks.transfer_progress(move |stats: Progress| {
         let received_objects = stats.received_objects();
