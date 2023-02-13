@@ -4,7 +4,8 @@
 
 #![cfg(not(windows))]
 
-use std::{io::stdout, process::ExitCode};
+use anyhow::Result;
+use std::io::stdout;
 
 mod cli;
 mod commands;
@@ -17,7 +18,7 @@ mod github;
 // TODO: You shouldn't have to specify the entry when removing a file, we can figure that out from the file's path
 
 #[tokio::main]
-async fn main() -> ExitCode {
+async fn main() -> Result<()> {
     // Panic handler
     std::panic::set_hook(Box::new(|info| {
         crossterm::execute!(
@@ -45,10 +46,9 @@ async fn main() -> ExitCode {
             crossterm::terminal::Clear(crossterm::terminal::ClearType::CurrentLine),
         )
         .ok(); // Not worth throwing an error if this doesn't work, just print the error
-        eprintln!("{}", e);
-        ExitCode::FAILURE
+        Err(e)
     } else {
-        ExitCode::SUCCESS
+        Ok(())
     };
     crossterm::execute!(std::io::stdout(), crossterm::cursor::Show).unwrap();
 

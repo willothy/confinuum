@@ -18,15 +18,17 @@ pub fn push() -> Result<()> {
         "Connecting to remote 'origin'",
         Color::Blue,
     );
-    {
-        let mut pushopt = git2::PushOptions::new();
-        pushopt.remote_callbacks(git::construct_callbacks(spinner.clone()));
-        spinner.update_text("Pushing changes to remote");
-        remote
-            .push(&["refs/heads/main:refs/heads/main"], Some(&mut pushopt))
-            .with_context(|| format!("Failed to push files to {}", remote.url().unwrap()))?;
-        // Scope to ensure that all references to spinner are dropped before we call success
-    }
+    spinner.update_text("Pushing changes to remote");
+    remote
+        .push(
+            &["refs/heads/main:refs/heads/main"],
+            Some(
+                git2::PushOptions::new()
+                    .remote_callbacks(git::construct_callbacks(spinner.clone())),
+            ),
+        )
+        .with_context(|| format!("Failed to push files to {}", remote.url().unwrap()))?;
+    // Scope to ensure that all references to spinner are dropped before we call success
     spinner.success("Changes pushed successfully.");
     Ok(())
 }

@@ -96,15 +96,34 @@ impl ConfinuumConfig {
                 })
                 .collect::<Vec<_>>();
             let all = prev_entry_files.iter().chain(canonicalized.iter());
-            let new_base = common_path_all(all.map(|x| x.as_path()))
-                .ok_or(anyhow!("Could not find common base path"))?;
+            let new_base = if all.clone().count() == 1 && canonicalized[0].is_file() {
+                canonicalized[0]
+                    .clone()
+                    .parent()
+                    .ok_or(anyhow!(
+                        "Could not get parent of {}",
+                        canonicalized[0].display()
+                    ))?
+                    .to_path_buf()
+            } else {
+                common_path_all(all.map(|x| x.as_path()))
+                    .ok_or(anyhow!("Could not find common base path"))?
+            };
 
             if let Some(target_dir) = &entry.target_dir {
                 if &new_base != target_dir {
                     let mut new = HashSet::new();
                     for entry in entry.files.iter() {
                         let old = target_dir.join(&entry);
-                        new.insert(old.strip_prefix(&new_base)?.to_path_buf());
+                        new.insert(
+                            old.strip_prefix(&new_base)
+                                .context(format!(
+                                    "Cannot strip prefix {} from {}",
+                                    new_base.display(),
+                                    old.display()
+                                ))?
+                                .to_path_buf(),
+                        );
                     }
                     entry.files = new;
                 }
@@ -125,7 +144,8 @@ impl ConfinuumConfig {
                     continue;
                 }
                 let entries = file
-                    .read_dir()?
+                    .read_dir()
+                    .context(format!("Could not read dir {}", file.display()))?
                     .filter_map(|x| if let Ok(x) = x { Some(x.path()) } else { None })
                     .collect::<Vec<_>>();
                 Self::add_files_recursive(entry, entries, base.clone(), result_files)?;

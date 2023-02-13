@@ -72,27 +72,31 @@ pub async fn remove(
         "Connecting to remote 'origin'",
         Color::Blue,
     );
-    {
-        // Scope to ensure that all references to spinner are dropped before we call success
-        spinner.update_text("Checking for changes on remote");
-        let mut fetch_opt = FetchOptions::new();
-        fetch_opt.update_fetchhead(true);
-        fetch_opt.remote_callbacks(git::construct_callbacks(spinner.clone()));
-        remote
-            .fetch(&["main"], Some(&mut fetch_opt), None)
-            .context("Failed to fetch from remote 'origin'")?;
-        let fetch_head = repo.find_reference("FETCH_HEAD")?;
-        let fetch_commit = repo.reference_to_annotated_commit(&fetch_head)?;
-        // Check if up to date
-        let analysis = repo.merge_analysis(&[&fetch_commit])?;
-        remote.disconnect()?;
-        if !analysis.0.is_up_to_date() {
-            spinner.fail("Changes found on remote");
-            return Err(anyhow!(
-                "Changes found on remote. Please pull them before deleting files."
-            ));
-        }
+
+    spinner.update_text("Checking for changes on remote");
+    remote
+        .fetch(
+            &["main"],
+            Some(
+                FetchOptions::new()
+                    .update_fetchhead(true)
+                    .remote_callbacks(git::construct_callbacks(spinner.clone())),
+            ),
+            None,
+        )
+        .context("Failed to fetch from remote 'origin'")?;
+    let fetch_head = repo.find_reference("FETCH_HEAD")?;
+    let fetch_commit = repo.reference_to_annotated_commit(&fetch_head)?;
+    // Check if up to date
+    let analysis = repo.merge_analysis(&[&fetch_commit])?;
+    remote.disconnect()?;
+    if !analysis.0.is_up_to_date() {
+        spinner.fail("Changes found on remote");
+        return Err(anyhow!(
+            "Changes found on remote. Please pull them before deleting files."
+        ));
     }
+
     spinner.clear();
 
     let confirm = no_confirm || {
