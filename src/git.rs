@@ -24,7 +24,7 @@ use std::{
 
 use crate::config::ConfinuumConfig;
 
-pub(crate) trait RepoExtensions {
+pub trait RepoExtensions {
     fn find_last_commit(&self) -> anyhow::Result<Commit>;
 }
 
@@ -50,7 +50,7 @@ fn find_ssh_key() -> anyhow::Result<PathBuf> {
 }
 
 /// Remote callbacks
-pub(crate) fn construct_callbacks<'a>(spinner: Rc<RefCell<Spinner>>) -> git2::RemoteCallbacks<'a> {
+pub fn construct_callbacks<'a>(spinner: Rc<RefCell<Spinner>>) -> git2::RemoteCallbacks<'a> {
     let mut callbacks = git2::RemoteCallbacks::new();
     callbacks.credentials(
         move |url: &str, username: Option<&str>, allowed_types: git2::CredentialType| {
@@ -183,7 +183,7 @@ pub(crate) fn construct_callbacks<'a>(spinner: Rc<RefCell<Spinner>>) -> git2::Re
     callbacks
 }
 
-pub(crate) fn print_diff(diff: &Diff, format: DiffFormat) -> Result<()> {
+pub fn print_diff(diff: &Diff, format: DiffFormat) -> Result<()> {
     let mut stdout = std::io::stdout().lock();
 
     crossterm::queue!(stdout, MoveToColumn(0) /* Print("\n") */)?;
@@ -241,7 +241,7 @@ pub(crate) fn print_diff(diff: &Diff, format: DiffFormat) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn diff_files(diff: &Diff) -> Result<Vec<PathBuf>> {
+pub fn diff_files(diff: &Diff) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     for delta in diff.deltas() {
         if let Some(file) = delta.new_file().path().map(|p| p.to_path_buf()) {
@@ -251,9 +251,7 @@ pub(crate) fn diff_files(diff: &Diff) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-pub(crate) fn diff_entries(
-    files: &Vec<PathBuf>,
-) -> Result<(HashMap<String, HashSet<PathBuf>>, bool)> {
+pub fn diff_entries(files: &Vec<PathBuf>) -> Result<(HashMap<String, HashSet<PathBuf>>, bool)> {
     let mut entries = HashMap::new();
     let config = ConfinuumConfig::load()?;
     let mut config_updated = false;
@@ -291,21 +289,21 @@ pub(crate) fn diff_entries(
     Ok((entries, config_updated))
 }
 
-pub(crate) mod gitconfig {
+pub mod gitconfig {
     use super::*;
-    pub(crate) fn git_config() -> Result<Config> {
+    pub fn git_config() -> Result<Config> {
         let path = git2::Config::find_global().context("Failed to find global git config")?;
         git2::Config::open(&path).context("Failed to open global (user-level) git config")
     }
 
-    pub(crate) fn get_user_name() -> Result<String> {
+    pub fn get_user_name() -> Result<String> {
         let config = git_config()?;
         config
             .get_string("user.name")
             .context("Failed to get user.name from git config")
     }
 
-    pub(crate) fn get_user_email() -> Result<EmailAddress> {
+    pub fn get_user_email() -> Result<EmailAddress> {
         let config = git_config()?;
         config
             .get_string("user.email")
@@ -316,7 +314,7 @@ pub(crate) mod gitconfig {
 
     /// Retrieve git config user.name and user.email and return a git2::Signature
     /// Throw an error if either of the values are not set
-    pub(crate) fn get_user_sig() -> Result<Signature<'static>> {
+    pub fn get_user_sig() -> Result<Signature<'static>> {
         let name = get_user_name()?;
         let email = get_user_email()?;
         Ok(Signature::now(&name, &email.to_string())?)
@@ -324,7 +322,7 @@ pub(crate) mod gitconfig {
 
     /// Retrieve git config user.name and user.email and return a git2::Signature
     /// Prompt the user to set the values if they are not set
-    pub(crate) fn get_user_sig_with_prompt() -> Result<Signature<'static>> {
+    pub fn get_user_sig_with_prompt() -> Result<Signature<'static>> {
         let username = if let Ok(username) = get_user_name() {
             username
         } else {

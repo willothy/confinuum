@@ -198,7 +198,7 @@ impl Cli {
     }
 }
 
-pub(crate) trait CreateSharedSpinner {
+pub trait CreateSharedSpinner {
     fn new_shared(
         frames: impl Into<SpinnerFrames>,
         message: impl Into<Cow<'static, str>>,
@@ -217,7 +217,7 @@ impl CreateSharedSpinner for spinoff::Spinner {
     }
 }
 
-pub(crate) trait SharedSpinner {
+pub trait SharedSpinner {
     fn stop(self);
     fn stop_with_message(self, message: &str);
     fn success(self, message: &str);

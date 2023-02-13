@@ -8,7 +8,7 @@ use crossterm::style::Stylize;
 use git2::{DiffOptions, Direction, FetchOptions, Repository};
 use spinoff::{spinners, Spinner};
 
-pub(crate) fn update() -> Result<()> {
+pub fn update() -> Result<()> {
     // TODO: Check for local unstaged changes
     super::undeploy(None::<&str>)?;
 

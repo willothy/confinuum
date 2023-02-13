@@ -12,7 +12,7 @@ use crate::{
     github::Github,
 };
 
-pub(crate) async fn remove(
+pub async fn remove(
     name: String,
     mut files: Vec<PathBuf>,
     no_confirm: bool,

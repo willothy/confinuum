@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Initialize the confinuum config file
-pub(crate) async fn init(git: Option<String>, force: bool, github: &Github) -> Result<()> {
+pub async fn init(git: Option<String>, force: bool, github: &Github) -> Result<()> {
     if ConfinuumConfig::exists()? && !force {
         return Err(anyhow::anyhow!(
             "Config file already exists. Use --force to overwrite."

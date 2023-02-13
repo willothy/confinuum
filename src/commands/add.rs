@@ -10,12 +10,7 @@ use spinoff::{spinners, Color, Spinner};
 use std::{collections::HashSet, path::PathBuf};
 
 /// Add files to an existing config entry
-pub(crate) async fn add(
-    name: String,
-    files: Vec<PathBuf>,
-    push: bool,
-    github: &Github,
-) -> Result<()> {
+pub async fn add(name: String, files: Vec<PathBuf>, push: bool, github: &Github) -> Result<()> {
     let config_dir = ConfinuumConfig::get_dir().context("Failed to fetch config dir")?;
     let repo = Repository::open(&config_dir)
         .with_context(|| format!("Could not open repository in {}", config_dir.display()))?;

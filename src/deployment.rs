@@ -3,7 +3,7 @@ use anyhow::{anyhow, Context, Result};
 
 use crate::config::ConfinuumConfig;
 
-pub(crate) fn deploy(name: Option<impl Into<String>>) -> Result<()> {
+pub fn deploy(name: Option<impl Into<String>>) -> Result<()> {
     let config = ConfinuumConfig::load()?;
     let config_dir = ConfinuumConfig::get_dir().context("Could not get config dir")?;
     let name: Option<String> = name.map(|n| n.into());
@@ -120,7 +120,7 @@ pub(crate) fn deploy(name: Option<impl Into<String>>) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn undeploy(name: Option<impl Into<String>>) -> Result<()> {
+pub fn undeploy(name: Option<impl Into<String>>) -> Result<()> {
     let config = ConfinuumConfig::load()?;
     let config_dir = ConfinuumConfig::get_dir()?;
     let name: Option<String> = name.map(|n| n.into());

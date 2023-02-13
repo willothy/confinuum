@@ -8,12 +8,12 @@ use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use std::{fs, time::Duration};
 
-pub(crate) struct Github {
+pub struct Github {
     client: octocrab::Octocrab,
 }
 
 impl Github {
-    pub(crate) async fn new() -> anyhow::Result<Self> {
+    pub async fn new() -> anyhow::Result<Self> {
         if Self::is_authenticated() {
             let auth_file = AuthFile::load()?;
             let host = auth_file.auth;
@@ -47,7 +47,7 @@ impl Github {
         Ok(github)
     }
 
-    pub(crate) async fn get_auth_user(&self) -> anyhow::Result<AuthUser> {
+    pub async fn get_auth_user(&self) -> anyhow::Result<AuthUser> {
         let res: Vec<EmailRes> = self.client.get("/user/public_emails", None::<&()>).await?;
         let email = res
             .into_iter()
@@ -63,12 +63,12 @@ impl Github {
         })
     }
 
-    pub(crate) async fn get_user_signature(&self) -> anyhow::Result<Signature> {
+    pub async fn get_user_signature(&self) -> anyhow::Result<Signature> {
         let user = self.get_auth_user().await?;
         Ok(Signature::now(&user.name, &user.email)?)
     }
 
-    pub(crate) fn is_authenticated() -> bool {
+    pub fn is_authenticated() -> bool {
         if let Ok(true) = AuthFile::exists() {
             AuthFile::load().is_ok()
         } else {
@@ -114,7 +114,7 @@ impl Github {
         Ok(auth)
     }
 
-    pub(crate) async fn create_repo(
+    pub async fn create_repo(
         &self,
         repo_info: RepoCreateInfo,
     ) -> anyhow::Result<models::Repository> {
@@ -130,19 +130,19 @@ impl Github {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct RepoCreateInfo {
-    pub(crate) name: String,
-    pub(crate) description: String,
-    pub(crate) private: bool,
-    pub(crate) is_template: bool,
+pub struct RepoCreateInfo {
+    pub name: String,
+    pub description: String,
+    pub private: bool,
+    pub is_template: bool,
     #[serde(flatten)]
-    pub(crate) opt: Option<RepoCreateInfoOpt>,
+    pub opt: Option<RepoCreateInfoOpt>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct RepoCreateInfoOpt {
-    pub(crate) has_downloads: Option<bool>,
-    pub(crate) homepage: Option<String>,
+pub struct RepoCreateInfoOpt {
+    pub has_downloads: Option<bool>,
+    pub homepage: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -155,22 +155,22 @@ struct EmailRes {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct AuthFile {
-    pub(crate) user: AuthUser,
-    pub(crate) auth: AuthHost,
+pub struct AuthFile {
+    pub user: AuthUser,
+    pub auth: AuthHost,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct AuthHost {
-    pub(crate) token: String,
-    pub(crate) token_type: String,
-    pub(crate) scopes: Vec<String>,
+pub struct AuthHost {
+    pub token: String,
+    pub token_type: String,
+    pub scopes: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct AuthUser {
-    pub(crate) name: String,
-    pub(crate) email: String,
+pub struct AuthUser {
+    pub name: String,
+    pub email: String,
 }
 
 impl From<&OAuth> for AuthHost {
@@ -194,11 +194,11 @@ impl From<&AuthHost> for OAuth {
 }
 
 impl AuthFile {
-    pub(crate) fn get_path() -> anyhow::Result<std::path::PathBuf> {
+    pub fn get_path() -> anyhow::Result<std::path::PathBuf> {
         Ok(config::ConfinuumConfig::get_dir()?.join("hosts.toml"))
     }
 
-    pub(crate) fn exists() -> anyhow::Result<bool> {
+    pub fn exists() -> anyhow::Result<bool> {
         let path = Self::get_path()?;
         if path.is_dir() {
             return Err(anyhow::anyhow!(
@@ -208,7 +208,7 @@ impl AuthFile {
         Ok(path.exists() && path.is_file())
     }
 
-    pub(crate) fn load() -> anyhow::Result<Self> {
+    pub fn load() -> anyhow::Result<Self> {
         if !Self::exists()? {
             return Err(anyhow::anyhow!(
                 "Auth file does not exist. Run `confinuum init` to create one."
@@ -221,7 +221,7 @@ impl AuthFile {
         Ok(auth_file)
     }
 
-    pub(crate) fn save(&self) -> anyhow::Result<()> {
+    pub fn save(&self) -> anyhow::Result<()> {
         let path = Self::get_path()?;
         let file = toml::to_string(&self)?;
         let conf_dir = ConfinuumConfig::get_dir()?;

@@ -9,7 +9,7 @@ use git2::{FetchOptions, IndexAddOption, Repository};
 use spinoff::{spinners, Color, Spinner};
 
 /// Remove a config entry (files will be restored to their original locations unless no_replace_files is set)
-pub(crate) async fn delete(
+pub async fn delete(
     name: String,
     no_confirm: bool,
     no_replace_files: bool,

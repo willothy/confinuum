@@ -9,7 +9,7 @@ use git2::{DiffFormat, DiffOptions, Direction, FetchOptions, Repository};
 use spinoff::{spinners, Spinner};
 
 // TODO: Update this to use the new config format and check individual entries
-pub(crate) fn check(print_diff: bool, name: Option<String>) -> Result<()> {
+pub fn check(print_diff: bool, name: Option<String>) -> Result<()> {
     let config_dir = ConfinuumConfig::get_dir()?;
     if !config_dir.exists() {
         return Err(anyhow!("Config directory does not exist"));

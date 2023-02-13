@@ -10,7 +10,7 @@ use spinoff::{spinners, Color, Spinner};
 use std::{collections::HashSet, path::PathBuf};
 
 /// Add a new config entry
-pub(crate) async fn new(
+pub async fn new(
     name: String,
     files: Option<Vec<PathBuf>>,
     push: bool,

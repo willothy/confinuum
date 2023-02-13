@@ -11,16 +11,16 @@ use common_path::common_path_all;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct Confinuum {
-    pub(crate) git_protocol: GitProtocol,
+pub struct Confinuum {
+    pub git_protocol: GitProtocol,
     /// Where to look for the user's name and email to be used in git commits
     /// If this is set to github, the user's name and email will be fetched from their github account
     /// If this is set to config, the user's name and email will be fetched from the config file
-    pub(crate) signature_source: SignatureSource,
+    pub signature_source: SignatureSource,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) enum SignatureSource {
+pub enum SignatureSource {
     #[serde(rename = "github")]
     Github,
     #[serde(rename = "gitconfig")]
@@ -28,20 +28,20 @@ pub(crate) enum SignatureSource {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct ConfigEntry {
+pub struct ConfigEntry {
     #[serde(skip)]
-    pub(crate) name: String,
+    pub name: String,
     /// The directory where the files will be deployed
     /// Example: ~/.config/nvim - files from ~/.config/confinuum/nvim will be symlinked to
     /// ~/.config/nvim/<file>
     /// This must be an absolute path
     /// Optional only for uninitialized config, it will always be set when adding files
-    pub(crate) target_dir: Option<PathBuf>,
-    pub(crate) files: HashSet<PathBuf>,
+    pub target_dir: Option<PathBuf>,
+    pub files: HashSet<PathBuf>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) enum GitProtocol {
+pub enum GitProtocol {
     #[serde(rename = "ssh")]
     Ssh,
     #[serde(rename = "https")]
@@ -49,14 +49,14 @@ pub(crate) enum GitProtocol {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct ConfinuumConfig {
-    pub(crate) confinuum: Confinuum,
+pub struct ConfinuumConfig {
+    pub confinuum: Confinuum,
     #[serde(flatten)]
-    pub(crate) entries: HashMap<String, ConfigEntry>,
+    pub entries: HashMap<String, ConfigEntry>,
 }
 
 impl ConfinuumConfig {
-    pub(crate) fn init(git_protocol: GitProtocol, signature_source: SignatureSource) -> Self {
+    pub fn init(git_protocol: GitProtocol, signature_source: SignatureSource) -> Self {
         Self {
             confinuum: Confinuum {
                 git_protocol,
@@ -66,7 +66,7 @@ impl ConfinuumConfig {
         }
     }
 
-    pub(crate) fn add_files_recursive(
+    pub fn add_files_recursive(
         entry: &mut ConfigEntry,
         files: Vec<PathBuf>,
         mut base: Option<PathBuf>,
@@ -181,7 +181,7 @@ impl ConfinuumConfig {
         Ok(base.unwrap())
     }
 
-    pub(crate) fn exists() -> Result<bool> {
+    pub fn exists() -> Result<bool> {
         let config_path = Self::get_path()?;
         if config_path.is_dir() {
             return Err(anyhow!(
@@ -191,15 +191,15 @@ impl ConfinuumConfig {
         Ok(config_path.exists() && config_path.is_file())
     }
 
-    pub(crate) fn get_path() -> Result<PathBuf> {
+    pub fn get_path() -> Result<PathBuf> {
         Ok(PathBuf::from(var("HOME")?).join(".config/confinuum/config.toml"))
     }
 
-    pub(crate) fn get_dir() -> Result<PathBuf> {
+    pub fn get_dir() -> Result<PathBuf> {
         Ok(PathBuf::from(var("HOME")?).join(".config/confinuum"))
     }
 
-    pub(crate) fn load() -> Result<ConfinuumConfig> {
+    pub fn load() -> Result<ConfinuumConfig> {
         if !Self::exists()? {
             return Err(anyhow!(
                 "Config file does not exist. Run `confinuum init` to create one."
@@ -216,7 +216,7 @@ impl ConfinuumConfig {
     }
 
     /// Save the config to disk (will overwrite existing config)
-    pub(crate) fn save(&self) -> Result<()> {
+    pub fn save(&self) -> Result<()> {
         let config_path = Self::get_path()?;
         let config_str = toml::to_string_pretty(self)?;
         let conf_dir = ConfinuumConfig::get_dir()?;
