@@ -1,5 +1,4 @@
-//! Author: Will Hopkins <willothyh@gmail.com>
-//! config.rs: Configuration file handling for confinuum
+//! Configuration file handling for confinuum
 
 use std::{
     collections::{HashMap, HashSet},
@@ -12,16 +11,16 @@ use common_path::common_path_all;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Confinuum {
-    pub git_protocol: GitProtocol,
+pub(crate) struct Confinuum {
+    pub(crate) git_protocol: GitProtocol,
     /// Where to look for the user's name and email to be used in git commits
     /// If this is set to github, the user's name and email will be fetched from their github account
     /// If this is set to config, the user's name and email will be fetched from the config file
-    pub signature_source: SignatureSource,
+    pub(crate) signature_source: SignatureSource,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum SignatureSource {
+pub(crate) enum SignatureSource {
     #[serde(rename = "github")]
     Github,
     #[serde(rename = "gitconfig")]
@@ -29,20 +28,20 @@ pub enum SignatureSource {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ConfigEntry {
+pub(crate) struct ConfigEntry {
     #[serde(skip)]
-    pub name: String,
+    pub(crate) name: String,
     /// The directory where the files will be deployed
     /// Example: ~/.config/nvim - files from ~/.config/confinuum/nvim will be symlinked to
     /// ~/.config/nvim/<file>
     /// This must be an absolute path
     /// Optional only for uninitialized config, it will always be set when adding files
-    pub target_dir: Option<PathBuf>,
-    pub files: HashSet<PathBuf>,
+    pub(crate) target_dir: Option<PathBuf>,
+    pub(crate) files: HashSet<PathBuf>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum GitProtocol {
+pub(crate) enum GitProtocol {
     #[serde(rename = "ssh")]
     Ssh,
     #[serde(rename = "https")]
@@ -50,14 +49,14 @@ pub enum GitProtocol {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ConfinuumConfig {
-    pub confinuum: Confinuum,
+pub(crate) struct ConfinuumConfig {
+    pub(crate) confinuum: Confinuum,
     #[serde(flatten)]
-    pub entries: HashMap<String, ConfigEntry>,
+    pub(crate) entries: HashMap<String, ConfigEntry>,
 }
 
 impl ConfinuumConfig {
-    pub fn init(git_protocol: GitProtocol, signature_source: SignatureSource) -> Self {
+    pub(crate) fn init(git_protocol: GitProtocol, signature_source: SignatureSource) -> Self {
         Self {
             confinuum: Confinuum {
                 git_protocol,
@@ -67,7 +66,7 @@ impl ConfinuumConfig {
         }
     }
 
-    pub fn add_files_recursive(
+    pub(crate) fn add_files_recursive(
         entry: &mut ConfigEntry,
         files: Vec<PathBuf>,
         mut base: Option<PathBuf>,
@@ -182,7 +181,7 @@ impl ConfinuumConfig {
         Ok(base.unwrap())
     }
 
-    pub fn exists() -> Result<bool> {
+    pub(crate) fn exists() -> Result<bool> {
         let config_path = Self::get_path()?;
         if config_path.is_dir() {
             return Err(anyhow!(
@@ -192,15 +191,15 @@ impl ConfinuumConfig {
         Ok(config_path.exists() && config_path.is_file())
     }
 
-    pub fn get_path() -> Result<PathBuf> {
+    pub(crate) fn get_path() -> Result<PathBuf> {
         Ok(PathBuf::from(var("HOME")?).join(".config/confinuum/config.toml"))
     }
 
-    pub fn get_dir() -> Result<PathBuf> {
+    pub(crate) fn get_dir() -> Result<PathBuf> {
         Ok(PathBuf::from(var("HOME")?).join(".config/confinuum"))
     }
 
-    pub fn load() -> Result<ConfinuumConfig> {
+    pub(crate) fn load() -> Result<ConfinuumConfig> {
         if !Self::exists()? {
             return Err(anyhow!(
                 "Config file does not exist. Run `confinuum init` to create one."
@@ -217,7 +216,7 @@ impl ConfinuumConfig {
     }
 
     /// Save the config to disk (will overwrite existing config)
-    pub fn save(&self) -> Result<()> {
+    pub(crate) fn save(&self) -> Result<()> {
         let config_path = Self::get_path()?;
         let config_str = toml::to_string_pretty(self)?;
         let conf_dir = ConfinuumConfig::get_dir()?;

@@ -1,14 +1,15 @@
 use crate::{
     cli::{CreateSharedSpinner, SharedSpinner},
     config::{ConfinuumConfig, SignatureSource},
-    git::{self, Github, RepoExtensions},
+    git::{self, RepoExtensions},
+    github::Github,
 };
 use anyhow::{anyhow, Context, Result};
 use git2::{FetchOptions, IndexAddOption, Repository};
 use spinoff::{spinners, Color, Spinner};
 
 /// Remove a config entry (files will be restored to their original locations unless no_replace_files is set)
-pub async fn delete(
+pub(crate) async fn delete(
     name: String,
     no_confirm: bool,
     no_replace_files: bool,

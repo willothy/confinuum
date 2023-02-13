@@ -1,7 +1,8 @@
 use crate::{
     cli::{CreateSharedSpinner, SharedSpinner},
     config::{ConfigEntry, ConfinuumConfig, SignatureSource},
-    git::{self, Github, RepoExtensions},
+    git::{self, RepoExtensions},
+    github::Github,
 };
 use anyhow::{anyhow, Context, Result};
 use git2::{Direction, FetchOptions, IndexAddOption, Repository};
@@ -9,7 +10,7 @@ use spinoff::{spinners, Color, Spinner};
 use std::{collections::HashSet, path::PathBuf};
 
 /// Add a new config entry
-pub async fn new(
+pub(crate) async fn new(
     name: String,
     files: Option<Vec<PathBuf>>,
     push: bool,
@@ -127,7 +128,7 @@ pub async fn new(
         repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &[&parent_commit])
             .context("Failed to commit files")?;
 
-        crate::util::deploy(Some(&name))?;
+        super::deploy(Some(&name))?;
     }
 
     if push {

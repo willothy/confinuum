@@ -1,13 +1,20 @@
-//! Author: Will Hopkins <willothyh@gmail.com>
-//! cli.rs: Command line interface for confinuum
+//! Command line interface for confinuum
 
-use std::{borrow::Cow, cell::RefCell, path::PathBuf, rc::Rc};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    fs::{self, File},
+    io::{BufWriter, Write},
+    path::PathBuf,
+    rc::Rc,
+};
 
 use anyhow::{anyhow, Result};
-use clap::{error::ErrorKind, Parser, Subcommand};
+use clap::{error::ErrorKind, CommandFactory, Parser, Subcommand, ValueHint};
+use clap_complete::Shell;
 use spinoff::{spinners::SpinnerFrames, Color, Spinner};
 
-use crate::{commands, git};
+use crate::{commands, github};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -22,55 +29,19 @@ pub struct Cli {
     pub command: Command,
 }
 
-impl Cli {
-    pub async fn run() -> Result<()> {
-        let args = match Self::try_parse() {
-            Ok(args) => args,
-            Err(e) => match e.kind() {
-                ErrorKind::DisplayHelp
-                | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
-                | ErrorKind::DisplayVersion => {
-                    println!("{}", e);
-                    return Ok(());
-                }
-                e => return Err(anyhow!("Error: {:?}", e)),
-            },
-        };
-        let github = git::Github::new().await?;
-
-        match args.command {
-            Command::Init { git, force } => commands::init(git, force, &github).await,
-            Command::New { name, files, push } => commands::new(name, files, push, &github).await,
-            Command::Delete {
-                name,
-                no_confirm,
-                no_replace_files,
-                push,
-            } => commands::delete(name, no_confirm, no_replace_files, push, &github).await,
-            Command::Add { name, files, push } => commands::add(name, files, push, &github).await,
-            Command::Remove {
-                name,
-                files,
-                no_confirm,
-                no_replace_files,
-                push,
-            } => commands::remove(name, files, no_confirm, no_replace_files, push, &github).await,
-            Command::List => commands::list(),
-            Command::Push => commands::push(),
-            Command::Check { print_diff, name } => commands::check(print_diff, name),
-            Command::Update => commands::update(),
-            Command::Redeploy => commands::redeploy(),
-        }
-    }
-}
-
 #[derive(Debug, Subcommand)]
-#[command(about, author, version)]
+#[command(
+    about,
+    author,
+    version,
+    arg_required_else_help = true,
+    display_order = 0
+)]
 pub enum Command {
     #[command(about = "Initialize the confinuum config file", long_about = None)]
     Init {
         /// Initialize from git repo containing an existing confinuum config
-        #[arg(long)]
+        #[arg(long, value_hint=ValueHint::Url)]
         git: Option<String>,
         /// Force overwrite of config file if it already exists
         #[clap(short, long)]
@@ -81,6 +52,7 @@ pub enum Command {
         /// Name of the config entry
         name: String,
         /// Files to add to the config entry (optional, you can add files later)
+        #[clap(value_hint = ValueHint::FilePath)]
         files: Option<Vec<PathBuf>>,
         /// Push the new config entry to the remote repo(s) after creating it, instead of waiting for a manual push (without this flag the change(s) will be committed locally but not pushed)
         #[clap(short = 'p', long)]
@@ -102,6 +74,7 @@ pub enum Command {
     #[command(about = "Add one or more files to an existing config entry", long_about = None)]
     Add {
         name: String,
+        #[clap(value_hint = ValueHint::FilePath)]
         files: Vec<PathBuf>,
         /// Push new files to the remote repo immediately, instead of waiting for a manual push (without this flag the change(s) will be committed locally but not pushed)
         #[clap(short = 'p', long)]
@@ -110,6 +83,7 @@ pub enum Command {
     #[command(about = "Remove one or more files from an existing config entry (files will be restored to their original locations)", long_about = None)]
     Remove {
         name: String,
+        #[clap(value_hint = ValueHint::FilePath)]
         files: Vec<PathBuf>,
         /// Don't ask for confirmation before removing the file(s)
         #[clap(short = 'y', long)]
@@ -137,9 +111,94 @@ pub enum Command {
     Update,
     #[command(name = "redeploy", about = "Redeploy all configs", long_about = None)]
     Redeploy,
+    #[command(about = "Generate manpages for confinuum")]
+    Mangen {
+        /// Output directory
+        #[clap(value_hint = ValueHint::FilePath)]
+        output: PathBuf,
+    },
+    #[command(about = "Generate completions for confinuum")]
+    Completions {
+        #[arg(required = true)]
+        shell: Shell,
+        /// Output file (optional, if not specified the completion will be printed to stdout)
+        #[clap(value_hint = ValueHint::FilePath)]
+        output: Option<PathBuf>,
+    },
 }
 
-pub trait CreateSharedSpinner {
+impl Cli {
+    pub async fn run() -> Result<()> {
+        let args = match Self::try_parse() {
+            Ok(args) => args,
+            Err(e) => match e.kind() {
+                ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+                    println!("{}", e);
+                    return Ok(());
+                }
+                _ => return Err(anyhow!("{}", e)),
+            },
+        };
+        let github = github::Github::new().await?;
+
+        match args.command {
+            Command::Init { git, force } => commands::init(git, force, &github).await,
+            Command::New { name, files, push } => commands::new(name, files, push, &github).await,
+            Command::Delete {
+                name,
+                no_confirm,
+                no_replace_files,
+                push,
+            } => commands::delete(name, no_confirm, no_replace_files, push, &github).await,
+            Command::Add { name, files, push } => commands::add(name, files, push, &github).await,
+            Command::Remove {
+                name,
+                files,
+                no_confirm,
+                no_replace_files,
+                push,
+            } => commands::remove(name, files, no_confirm, no_replace_files, push, &github).await,
+            Command::List => commands::list(),
+            Command::Push => commands::push(),
+            Command::Check { print_diff, name } => commands::check(print_diff, name),
+            Command::Update => commands::update(),
+            Command::Redeploy => commands::redeploy(),
+            Command::Mangen { output } => {
+                if output.is_file() {
+                    return Err(anyhow!(
+                        "{} is a file! Mangen output must be a directory",
+                        output.display()
+                    ));
+                }
+                if !output.exists() {
+                    fs::create_dir_all(&output)?;
+                }
+                let man_file_path = output.join("confinuum.1");
+                let mut out = BufWriter::new(File::create(man_file_path)?);
+                let cmd = Cli::command();
+                let man = clap_mangen::Man::new(cmd);
+                man.render(&mut out)?;
+                out.flush()?;
+                Ok(())
+            }
+            Command::Completions { shell, output } => {
+                let mut out: BufWriter<Box<dyn std::io::Write>> = if let Some(output) = output {
+                    if !output.exists() {
+                        fs::create_dir_all(&output.parent().unwrap())?;
+                    }
+                    BufWriter::new(Box::new(File::create(output)?))
+                } else {
+                    BufWriter::new(Box::new(std::io::stdout()))
+                };
+                clap_complete::generate(shell, &mut Cli::command(), "confinuum", &mut out);
+                out.flush()?;
+                Ok(())
+            }
+        }
+    }
+}
+
+pub(crate) trait CreateSharedSpinner {
     fn new_shared(
         frames: impl Into<SpinnerFrames>,
         message: impl Into<Cow<'static, str>>,
@@ -158,7 +217,7 @@ impl CreateSharedSpinner for spinoff::Spinner {
     }
 }
 
-pub trait SharedSpinner {
+pub(crate) trait SharedSpinner {
     fn stop(self);
     fn stop_with_message(self, message: &str);
     fn success(self, message: &str);

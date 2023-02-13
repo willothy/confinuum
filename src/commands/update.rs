@@ -1,16 +1,16 @@
 use crate::{
     cli::{CreateSharedSpinner, SharedSpinner},
     config::ConfinuumConfig,
-    git, util,
+    git,
 };
 use anyhow::{anyhow, Context, Result};
 use crossterm::style::Stylize;
 use git2::{DiffOptions, Direction, FetchOptions, Repository};
 use spinoff::{spinners, Spinner};
 
-pub fn update() -> Result<()> {
+pub(crate) fn update() -> Result<()> {
     // TODO: Check for local unstaged changes
-    util::undeploy(None::<&str>)?;
+    super::undeploy(None::<&str>)?;
 
     let config_dir = ConfinuumConfig::get_dir()?;
     if !config_dir.exists() {
@@ -138,7 +138,7 @@ pub fn update() -> Result<()> {
         return Ok(());
     }
 
-    util::deploy(None::<&str>)?;
+    super::deploy(None::<&str>)?;
 
     Ok(())
 }

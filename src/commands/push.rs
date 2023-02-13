@@ -8,7 +8,7 @@ use crate::{
     git,
 };
 
-pub fn push() -> Result<()> {
+pub(crate) fn push() -> Result<()> {
     let config_dir = ConfinuumConfig::get_dir().context("Failed to fetch config dir")?;
     let repo = Repository::open(&config_dir)
         .with_context(|| format!("Could not open repository in {}", config_dir.display()))?;

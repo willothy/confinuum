@@ -8,11 +8,11 @@ use spinoff::{spinners, Color, Spinner};
 use crate::{
     cli::{CreateSharedSpinner, SharedSpinner},
     config::{ConfinuumConfig, SignatureSource},
-    git::{self, Github, RepoExtensions},
-    util,
+    git::{self, RepoExtensions},
+    github::Github,
 };
 
-pub async fn remove(
+pub(crate) async fn remove(
     name: String,
     mut files: Vec<PathBuf>,
     no_confirm: bool,
@@ -126,7 +126,7 @@ pub async fn remove(
         Color::Blue,
     );
 
-    util::undeploy(Some(&name))?; // Undeploy entry if it's deployed
+    super::undeploy(Some(&name))?; // Undeploy entry if it's deployed
 
     {
         // Remove files from entry, and move them to their original location (unless no)
@@ -213,7 +213,7 @@ pub async fn remove(
                 .with_context(|| format!("Failed to push files to {}", remote.url().unwrap()))?;
         }
     }
-    util::deploy(Some(&name))?; // Deploy entry
+    super::deploy(Some(&name))?; // Deploy entry
     spinner.success(&format!(
         "Successfully removed {} files from {}",
         files.len(),

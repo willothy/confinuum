@@ -2,7 +2,7 @@ use crate::config::ConfinuumConfig;
 use anyhow::Result;
 use crossterm::style::Stylize;
 
-pub fn list() -> Result<()> {
+pub(crate) fn list() -> Result<()> {
     let config = ConfinuumConfig::load()?;
     for (name, entry) in config.entries {
         if let Some(target_dir) = &entry.target_dir {

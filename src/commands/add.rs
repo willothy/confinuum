@@ -1,7 +1,8 @@
 use crate::{
     cli::{CreateSharedSpinner, SharedSpinner},
     config::{ConfinuumConfig, SignatureSource},
-    git::{self, Github, RepoExtensions},
+    git::{self, RepoExtensions},
+    github::Github,
 };
 use anyhow::{anyhow, Context, Result};
 use git2::{FetchOptions, IndexAddOption, Repository};
@@ -9,7 +10,12 @@ use spinoff::{spinners, Color, Spinner};
 use std::{collections::HashSet, path::PathBuf};
 
 /// Add files to an existing config entry
-pub async fn add(name: String, files: Vec<PathBuf>, push: bool, github: &Github) -> Result<()> {
+pub(crate) async fn add(
+    name: String,
+    files: Vec<PathBuf>,
+    push: bool,
+    github: &Github,
+) -> Result<()> {
     let config_dir = ConfinuumConfig::get_dir().context("Failed to fetch config dir")?;
     let repo = Repository::open(&config_dir)
         .with_context(|| format!("Could not open repository in {}", config_dir.display()))?;
@@ -95,7 +101,7 @@ pub async fn add(name: String, files: Vec<PathBuf>, push: bool, github: &Github)
         repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &[&parent_commit])
             .context("Failed to commit files")?;
 
-        crate::util::deploy(Some(&name))?;
+        super::deploy(Some(&name))?;
     }
 
     spinner.success("Files added successfully");

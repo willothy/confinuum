@@ -7,12 +7,12 @@ use spinoff::{spinners, Color, Spinner};
 use crate::{
     cli::{CreateSharedSpinner, SharedSpinner},
     config::{ConfinuumConfig, GitProtocol, SignatureSource},
-    git::{self, Github, RepoCreateInfo},
-    util,
+    git::{self},
+    github::{Github, RepoCreateInfo},
 };
 
 /// Initialize the confinuum config file
-pub async fn init(git: Option<String>, force: bool, github: &Github) -> Result<()> {
+pub(crate) async fn init(git: Option<String>, force: bool, github: &Github) -> Result<()> {
     if ConfinuumConfig::exists()? && !force {
         return Err(anyhow::anyhow!(
             "Config file already exists. Use --force to overwrite."
@@ -33,7 +33,7 @@ pub async fn init(git: Option<String>, force: bool, github: &Github) -> Result<(
         // Clone the repo
         // TODO: Ensure the clone contains a valid config file, and if so validate the entries
         Repository::clone(&git_url, config_dir).context(format!("Failed to clone {}", git_url))?;
-        util::deploy(None::<&str>)?;
+        super::deploy(None::<&str>)?;
         return Ok(());
     }
 
@@ -182,6 +182,7 @@ pub async fn init(git: Option<String>, force: bool, github: &Github) -> Result<(
         pushopt.remote_callbacks(git::construct_callbacks(spinner.clone()));
         remote.push(&["refs/heads/main:refs/heads/main"], Some(&mut pushopt))?;
     }
+
     spinner.success("Successfully initialized confinuum!");
 
     Ok(())

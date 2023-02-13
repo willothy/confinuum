@@ -5,11 +5,11 @@ version = "0.1.0"
 authors = ["Will Hopkins <willothyh@gmail.com>"]
 description = "A CLI tool for managing configuration files across multiple Linux machines."
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 anyhow = "1.0.69"
 clap = { version = "4.1.4", features = ["derive"] }
+clap_complete = "4.1.1"
+clap_mangen = "0.2.7"
 common-path = "1.0.0"
 crossterm = "0.26.0"
 dialoguer = "0.10.3"
@@ -28,3 +28,4 @@ spinoff = { version = "0.7.0", features = ["dots9"], default-features = false }
 tempdir = "0.3.7"
 tokio = {version = "1.25.0", features = ["full"] }
 toml = "0.7.1"
+

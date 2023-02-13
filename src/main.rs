@@ -1,20 +1,23 @@
 //! Author: Will Hopkins <willothyh@gmail.com>
 //! Description: A simple CLI tool for managing program configurations across multiple machines.
 //! License: MIT
+
 #![cfg(not(windows))]
 
-use std::io::stdout;
+use std::{io::stdout, process::ExitCode};
 
 mod cli;
 mod commands;
 mod config;
+mod deployment;
 mod git;
-mod util;
+mod github;
 
 // TODO: Allow for an entry to contain submodules or be a submodule
+// TODO: You shouldn't have to specify the entry when removing a file, we can figure that out from the file's path
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> ExitCode {
     // Panic handler
     std::panic::set_hook(Box::new(|info| {
         crossterm::execute!(
@@ -35,18 +38,21 @@ async fn main() -> anyhow::Result<()> {
         }
     }));
 
-    if let Err(e) = cli::Cli::run().await {
+    let res = if let Err(e) = cli::Cli::run().await {
         crossterm::execute!(
             stdout(),
             crossterm::cursor::MoveToColumn(0),
             crossterm::terminal::Clear(crossterm::terminal::ClearType::CurrentLine),
-            crossterm::cursor::Show
-        )?;
-        return Err(e);
-    }
+        )
+        .ok(); // Not worth throwing an error if this doesn't work, just print the error
+        eprintln!("{}", e);
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    };
     crossterm::execute!(std::io::stdout(), crossterm::cursor::Show).unwrap();
 
-    Ok(())
+    res
 }
 
 #[cfg(windows)]

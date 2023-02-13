@@ -5,23 +5,19 @@ mod init;
 mod list;
 mod new;
 mod push;
+mod redeploy;
 mod remove;
 mod update;
 
-pub use add::add;
-pub use check::check;
-pub use delete::delete;
-pub use init::init;
-pub use list::list;
-pub use new::new;
-pub use push::push;
-pub use remove::remove;
-pub use update::update;
+pub(crate) use add::add;
+pub(crate) use check::check;
+pub(crate) use delete::delete;
+pub(crate) use init::init;
+pub(crate) use list::list;
+pub(crate) use new::new;
+pub(crate) use push::push;
+pub(crate) use redeploy::redeploy;
+pub(crate) use remove::remove;
+pub(crate) use update::update;
 
-use crate::util;
-
-pub(crate) fn redeploy() -> Result<(), anyhow::Error> {
-    util::undeploy(None::<&str>)?;
-    util::deploy(None::<&str>)?;
-    Ok(())
-}
+pub(self) use crate::deployment::*;
